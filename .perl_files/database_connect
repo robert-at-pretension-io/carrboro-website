@@ -1,0 +1,166 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use handy_perl_subroutines;
+use DBI;
+use DBD::mysql;
+use Array::Utils qw(:all);
+use List::MoreUtils qw(all any);
+
+########################
+#                      #
+#   variables here     #
+#                      #
+########################
+use Config::Tiny;
+my $config = Config::Tiny->new;
+$config = Config::Tiny->read ('database_connect.config');
+my $database= $config ->{'database_connect.config'} -> {'database'};
+my $host= $config ->{'database_connect.config'} -> {'host'};
+my $userid= $config ->{'database_connect.config'} -> {'userid'};
+my $passwd= $config ->{'database_connect.config'} -> {'passwd'};
+########################
+
+#----------------------------------------#
+#		  main!!!
+#----------------------------------------#
+START:
+my $dbh = &connect_to_mysql_database();
+# clear_screen();
+my  ($table, @table_columns) = &table_column_names();
+# clear_screen();
+my @insert_into_this_array = &choose_which_columns(@table_columns);
+
+print "you'll be entering data into these columns: @insert_into_this_array\nof this table: $table\nof this database: $database\nIf this is incorrect type redo.";
+
+my $goto = &if_input_equals_goto("redo","START");
+if ($goto) {
+
+print "\n $goto \n"; goto $goto; }
+
+#loop through @array, collecting data I want to put into the array
+our @table_values;
+foreach(@insert_into_this_array) {
+
+print "What value would you to store in $_?";
+my $value = <STDIN>; chomp($value); push @table_values, $value;
+
+
+}
+
+
+our $columns = join ',', @insert_into_this_array;
+our $values = join ',', @table_values;
+(our $new_v = $values) =~ s/([a-zA-Z\-\']+)/\"$1\"/g;
+
+
+our $sql = "INSERT INTO $table ($columns) VALUES ($new_v)";
+our $sth = $dbh->prepare("$sql");
+$sth->execute;
+print $sql;
+
+#----------------------------------------#
+#----------------------------------------#
+sub choose_which_columns {
+#----------------------------------------#
+#----------------------------------------#
+
+#@table_columns are ALL of the columns in the table
+my (@table_columns) = @_;
+
+#print out all of the columns
+print "These are the columns in the table, $table.\n";
+foreach (@table_columns) { print "$_\n";}
+print "\nOut of those columns, which would you like to edit?\n";
+
+#split the scalar into an array over the spaces
+our $answer = get_variable_data("columns of table that you want to edit..");
+our @array = split(/\s+/, $answer);
+
+#check if the selected columns are actually in the table
+while (!(check_if_subset(@array, @table_columns))) {
+$answer = get_variable_data("columns of table that you want to edit..");
+@array = split(/\s+/, $answer);
+}
+
+#return the columns to edit
+return @array;
+}
+
+
+#----------------------------------------#
+#----------------------------------------#
+sub table_column_names {
+#----------------------------------------#
+#----------------------------------------#
+
+#Do nothing with arguments to subroutine
+my (@args) = @_;
+
+#put the tables of the database into the array, @tables
+my @tables = $dbh->tables();
+
+#print the tables in the database out
+foreach (@tables){print "table: $_ \n";}
+
+#ask user for the tables that they want to edit
+our $table = get_variable_data("Tables to edit");
+chomp $table;
+
+#make the data we entered match the way @tables stores the table names
+our $database_table = "`$database`.`$table`";
+
+#check to see that the table exists in the database
+while (!(any { $_ eq $database_table } @tables  )) { 
+print "\n This ($database_table) is not a table in the database, try again...";
+$table = get_variable_data("Table to edit");
+chomp $table;
+$database_table = "`$database`.`$table`";
+}
+
+#dbh connect baby... oh yeah
+my $sth_column_info  = $dbh->column_info( undef,undef, $table , undef ) or die "error!";
+my $aoa_ref = $sth_column_info->fetchall_arrayref; # <- chg. to arrayref, no parms
+my @array_of_table_columns = ();   
+
+for my $outside_ref( @$aoa_ref) {
+
+#one way to get column names
+push (@array_of_table_columns, ${$outside_ref}[3]);
+}
+
+#return the table we decided to work with and the columns in said table
+return $table, @array_of_table_columns;
+}
+
+#----------------------------------------#
+#----------------------------------------#
+sub connect_to_mysql_database {
+#----------------------------------------#
+#----------------------------------------#
+
+# the chomp() function will remove any newline character from the end of a string
+chomp ($database, $host, $userid, $passwd);
+
+# assign the values to your connection variable
+my $connectionInfo="dbi:mysql:$database;$host";
+
+# make connection to database
+my $database_handle= DBI->connect($connectionInfo,$userid,$passwd);
+
+# the value of this connection is returned by the sub-routine
+return $database_handle;
+
+}
+
+
+
+#----------------------------------------#
+#----------------------------------------#
+sub make_an_array_of_references {
+#----------------------------------------#
+#----------------------------------------#
+
+
+
+}

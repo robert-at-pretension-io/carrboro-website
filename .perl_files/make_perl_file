@@ -1,0 +1,113 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Config::Tiny;
+use List::MoreUtils qw(uniq);
+
+print "What would you like to name your file?\n";
+my $answer = <STDIN>;
+chomp $answer;
+
+
+while (-e $answer) {
+print "file exists already\nPick another name.\n";
+$answer= <STDIN>;
+chomp $answer;
+}
+
+print `touch $answer`;
+open (my $fh, '>',  $answer) or die $!;
+
+
+print $fh "#!/usr/bin/perl
+use strict;
+use warnings;
+use handy_perl_subroutines;
+
+
+########################
+#                      #
+#   variables here     #
+#                      #
+########################
+";
+
+
+&config_file("$answer.config");
+
+########################
+
+
+
+
+
+print `chmod +x $answer`;
+
+sub config_file {
+
+
+my ($config_file_name, @rest) = @_;
+unless (@_){ print"\nPlease enter a file name for the config file\n"; $config_file_name = <STDIN>; chomp $config_file_name;}
+
+
+while (-e $config_file_name){print "\nPlease enter a filename that doesn't already exist\n";  $config_file_name = <STDIN>; chomp $config_file_name;}
+
+
+chomp $config_file_name;
+
+
+print `touch $config_file_name`;
+
+print "What variables would you like to make persistent?\n";
+
+my $prearray = <STDIN>;
+chomp $prearray;
+my @array = split(/\s+/, $prearray);
+@array = uniq (@array);
+
+
+
+my $Config = Config::Tiny -> new;
+$Config = Config::Tiny->read("$config_file_name");
+
+my $size = @array;
+unless ($size eq '0' ) { $Config -> {$config_file_name} = { };  print $fh "use Config::Tiny;\n"; print $fh "my \$config = Config::Tiny->new;\n"; print $fh "\$config = Config::Tiny->read ('$config_file_name');\n"; }
+
+my $value;
+foreach (@array){
+print "\nYour current variable is $_, what would you like to make the value written to the file?\n";
+$value = <STDIN>;
+chomp $value;
+$Config -> {$config_file_name} -> {$_} = $value;
+print $fh "my \$$_= \$config ->\{'$config_file_name'\} -> \{'$_'\};\n";
+
+}
+print $fh '########################
+
+########################
+# usage of Config::Tiny#
+########################
+=usage #comment this out to list all keys
+foreach my $section (keys %{$config}) {
+    # print "[$section]\n";
+    foreach my $parameter (keys %{$config->{$section}}) {
+        print "$parameter=$config->{$section}->{$parameter}\n";
+    }
+}
+=cut #also comment this out to list all keys
+########################';
+
+
+
+
+
+
+
+
+
+
+$Config -> write($config_file_name);
+
+
+if ($size eq '0') {print "No persistent values? Okay, let me clean up...\nDeleting $config_file_name.\n"; print `rm $config_file_name`;};
+}
