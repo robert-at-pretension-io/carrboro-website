@@ -13,7 +13,21 @@ $q    = new CGI::Simple;
 my $cgi = new CGI;
 print $cgi->header;
 
+print '
+<style>
 
+
+
+* {
+
+font-family: \'Vollkorn\', serif;
+margin:10px;
+padding:10px;
+background:rgba(0,0,0,0.1);
+}
+
+</style>
+';
 our %forms = (
     first_name => {
         human_readable => "First Name",
@@ -160,8 +174,7 @@ if ( !%errors and $key_scalar ) {
 
 
 print '
-<link href="http://fonts.googleapis.com/css?family=Corben:bold" rel="stylesheet" type="text/css">
-<link href="http://fonts.googleapis.com/css?family=Nobile" rel="stylesheet" type="text/css">
+<link href=\'http://fonts.googleapis.com/css?family=Vollkorn:400,400italic,700\' rel=\'stylesheet\' type=\'text/css\'>
 ';
 
 =show_tables
