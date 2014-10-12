@@ -14,14 +14,17 @@ my $cgi = new CGI;
 print $cgi->header;
 
 print '
+
 <style>
 
 
 
+
+
+
 * {
-font-family: \'Vollkorn\', serif;
-margin-top:10px;
-padding:10px;
+margin: 1%;
+padding: 1%;
 background:rgba(0,0,0,0.1);
 }
 
@@ -50,7 +53,7 @@ our %forms = (
 
     years_running => {
         regex          => '^\d{1,2}$',
-        function       => 'range(0,19)',
+        function       => 'range(0,20)',
         fix_data       => 'enter 0 through 19.',
         human_readable => "Years Running",
     },
@@ -80,28 +83,40 @@ our @array_of_form_hashes = (
 sub create_form {
     my $form_title = shift;
     my (@form_fields) = @_;
-    print "<div class=\"container\"><form>";
-    print "<form><h1>$form_title</h1><br>";
-    unless(%errors) {undef %valid;}
-	foreach my $field (@form_fields) {
+    my ($current_file) = $0 =~ m'[^/]+(?=/$|$)';
+    print
+      "<form method='post' action='test.pl' ><div><h1>$form_title</h1></div>";
+    unless (%errors) { undef %valid; }
+    print "<div class='container'>";
+    foreach my $field (@form_fields) {
+
+        print "<div class=\"entry\">";
         if ( $forms{$field} ) {
             if ( $errors{$field} ) {
                 print
-"<b>$forms{$field}{human_readable}:</b> <input type=\"text\" name=\"$field\" > <b>Please $errors{$field}</b> <br>";
+"<input placeholder=\"$forms{$field}{human_readable}\" type=\"text\" name=\"$field\" ><b>Please $errors{$field}</b>";
             }
             else {
-                print
-"$forms{$field}{human_readable}: <input type=\"text\" name=\"$field\"";
-                if ( $valid{$field} ) { print "value=\"$valid{$field}\""; }
-                print "><br>";
+                if ( $valid{$field} ) {
+
+                    print
+" $forms{$field}{human_readable}: <input type=\"text\" name=\"$field\" value=\"$valid{$field}\">";
+                }
+                else {
+
+                    print
+"<input placeholder=\"$forms{$field}{human_readable}\" type=\"text\" name=\"$field\">";
+                }
 
             }
         }
+        print "</div>";
 
         #print "$field->{human_readable}... Example: $field->{example}<br>\n";
     }
-    print "<input type=\"submit\" value=\"Submit\" >";
-    print "</form></div>";
+    print "</div>";
+    print "<div><input type=\"submit\" value=\"Submit\" ></div>";
+    print "</form>";
 }
 
 my $dbh = DBI->connect( 'dbi:mysql:team', 'team', 'teampasswd' );
@@ -116,7 +131,6 @@ for my $outside_ref (@$column_info_ref) {
 our %functions = (
     range => sub {
         my ( $low_end, $high_end, $data ) = @_;
-
 
         if ( ( $data > $low_end ) and ( $data < $high_end ) ) {
             return "True";
@@ -158,8 +172,7 @@ sub validate_form2 {
 
             }
 
-            if (    $forms{$form_name}->{function})
-            {
+            if ( $forms{$form_name}->{function} ) {
                 my ( $function, $args ) =
                   $forms{$form_name}->{function} =~ m/^(.+)\((.+)\)$/;
                 @array = split( /,/, $args );
@@ -181,17 +194,13 @@ sub validate_form2 {
 create_form( $form_title, @array_of_form_hashes );
 ################################### TO DO: MAKE SURE THAT THE $KEYS ARE A SUBSET OF THE COLUMS OF A THE TABLE.. IF NOT, THEN SKIP THEM
 my $sqlz = "INSERT INTO runners ($key_scalar) VALUES ($value_scalar)";
-print $sqlz;
+
+#print $sqlz;
 
 if ( !%errors and $key_scalar ) {
     my $insert_data = $dbh->prepare($sqlz);
     $insert_data->execute;
 }
-
-print '
-<link href=\'http://fonts.googleapis.com/css?family=Vollkorn:400,400italic,700\' rel=\'stylesheet\' type=\'text/css\'>
-';
-
 my $sql = q/select * from runners/;
 my $sth = $dbh->prepare($sql);
 $sth->execute;
@@ -205,5 +214,4 @@ foreach my $row ( @{$rows} ) {
     $tr->multiply( 'td', \@{$row} );
 }
 print $table->text();
-
 print $cgi->end_html;

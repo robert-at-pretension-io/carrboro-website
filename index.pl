@@ -185,7 +185,7 @@ if ( $param->{password} eq "opensesame" ) {
 
 print $html_head;
 print $html_non_logic_body;
-if ($is_cookie_set) {print $html_intro, $html_coaches, $html_logout}else {print $html_login;}  
+if ($is_cookie_set) {print $html_intro, $html_coaches; }else {print $html_login;}  
 
 
 print $html_end_of_page;
