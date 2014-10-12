@@ -5,6 +5,7 @@ use CGI;
 use DBD::mysql;
 use CGI::Carp qw(fatalsToBrowser warningsToBrowser);
 warningsToBrowser(1);
+use Data::Dumper;
 use HTML::Make;
 use CGI::Simple;
 use Array::Utils qw(:all);
@@ -12,6 +13,9 @@ $q    = new CGI::Simple;
 %hash = $q->Vars;
 my $cgi = new CGI;
 print $cgi->header;
+
+
+
 
 print '
 
@@ -191,7 +195,7 @@ sub validate_form2 {
 
 }
 
-create_form( $form_title, @array_of_form_hashes );
+#create_form( $form_title, @array_of_form_hashes );
 ################################### TO DO: MAKE SURE THAT THE $KEYS ARE A SUBSET OF THE COLUMS OF A THE TABLE.. IF NOT, THEN SKIP THEM
 my $sqlz = "INSERT INTO runners ($key_scalar) VALUES ($value_scalar)";
 
@@ -201,9 +205,47 @@ if ( !%errors and $key_scalar ) {
     my $insert_data = $dbh->prepare($sqlz);
     $insert_data->execute;
 }
-my $sql = q/select * from runners/;
-my $sth = $dbh->prepare($sql);
+
+our %database_hash;
+
+
+
+hashify_database_query_by_pk_id("runners","pk_id");
+
+sub hashify_database_query_by_pk_id{
+
+our ($table,$pk_id_column_name) = @_;
+
+my $sql = "select * from $table";
+our $sth = $dbh->prepare($sql);
 $sth->execute;
+
+
+
+
+our @fields =  @{$sth->{NAME}};
+print (join ('  -   ',@fields));
+foreach my $field (@fields){
+}
+
+while (our $hash_ref = $sth->fetchrow_hashref) {
+
+foreach our $field (@fields){
+$database_hash{$table}{$$hash_ref{$pk_id_column_name}}{$field}=$$hash_ref{$field};
+}
+print "<br>";
+
+
+
+}
+}
+
+print Dumper(\%database_hash);
+
+
+
+
+=table_stuff
 my $table = HTML::Make->new('table');
 my $tr    = $table->push('tr');
 $tr->multiply( 'th', \@{ $sth->{NAME} } );
@@ -214,4 +256,5 @@ foreach my $row ( @{$rows} ) {
     $tr->multiply( 'td', \@{$row} );
 }
 print $table->text();
+=cut
 print $cgi->end_html;
