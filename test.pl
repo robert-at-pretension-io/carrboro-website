@@ -75,21 +75,6 @@ h1 {
 }
 </style>";
 
-=show_form
-print "<div class=\"container\">
-<form action=\"test.pl\" method=\"post\"><h1>Insert Runner Info</h1> <br>
-First Name: <input type=\"text\" name=\"first_name\"><br>
-Last Name: <input type=\"text\" name=\"last_name\"><br>
-Gender(m/f): <input type=\"text\" name=\"gender\"><br>
-Currently on team? (y/n): <input type=\"text\" name=\"currently_on_team\"><br>
-Year Graduating (or graduated): <input type=\"text\" name=\"graduation_year\"><br>
-Years Running: <input type=\"text\" name=\"years_running\"><br>
-Year of birth: <input type=\"text\" name=\"year_of_birth\"><br>
-<input type=\"submit\" value=\"Submit\" >
-</form>
-</div>"
-  ;
-=cut
 
 our %forms = (
     first_name => {
@@ -108,39 +93,35 @@ our %forms = (
 
     gender => {
         regex    => '^[mf]{1,1}$',
-        fix_data => 'enter m or f.'
-
+        fix_data => 'enter m or f.',
+	human_readable => "Gender",
     },
 
     years_running => {
         regex    => '^\d{1,2}$',
         function => 'range(0,19)',
         fix_data => 'enter 0 through 19.',
-
+	human_readable => "Years Running",
     },
 
-      graduation_year => {
-        regex    => '^[0-9]{4,4}$',
-        function => 'range(2000,2099)',
-        fix_data => 'enter 2000 through 2099.'
-
-      },
 
     year_of_birth => {
         regex    => '^[0-9]{4,4}$',
         function => 'range(1900,2099)',
-        fix_data => 'enter 1900 through 2099.'
-    },
+        fix_data => 'enter 1900 through 2099.',
+	human_readable => "Year of Birth"    
+},
 
       currently_on_team => {
         regex    => '^[yn]{1,1}$',
         fix_data => 'enter either y or n.',
+	human_readable => "Currently on Team?",
       },
 
 );
 
 our $form_title = "Enter Runners...";
-our @array_of_form_hashes = ( 'first_name', 'last_name', 'age' );
+our @array_of_form_hashes = ( 'first_name', 'last_name', 'year_of_birth', 'currently_on_team', 'years_running' );
 
 create_form( $form_title, @array_of_form_hashes );
 
