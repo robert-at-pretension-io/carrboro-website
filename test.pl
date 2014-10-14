@@ -15,26 +15,75 @@ my $cgi = new CGI;
 print $cgi->header;
 
 
+#foreach my $keys (keys %hash){
+#foreach my $values ($hash{$keys}) {
+
+#print "key: $keys, value: $values.<br>";}}  #debugging
 
 
 print '
 
 <style>
 
+.container{
+width: 600px;
 
+}
 
+td 
+{
+    text-align:center; 
+    vertical-align:middle;
+}
 
+th{
+padding:10px;
+}
+
+hr { border: 0; height: 0; border-top: 1px solid rgba(0, 0, 0, 0.1); border-bottom: 1px solid rgba(255, 255, 255, 0.3); padding:0; margin:0;}
+
+input{
+border:0;
+border-top: 1px solid rgba(0, 0, 0, 0.1); border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+}
 
 
 * {
-margin: 1%;
-padding: 1%;
-background:rgba(0,0,0,0.1);
+
+
+#color:white;
+margin: 5px;
+padding: 5px;
+#background:rgba(100,0,140,0.4);
 }
 
 </style>
 ';
 our %forms = (
+
+	alias =>  {
+	human_readable => 'Name of Race',
+	example => 'Cummings High School, Wendy\'s invitational, etc',
+	regex => '[a-zA-Z ]',
+	fix_data => 'use only letters and spaces.',
+
+
+},
+
+    location => {
+        human_readable => 'Address of Race',
+        example        => '123 Fake Street, City/Town, State, Zip',
+        function       => 'address_check()',
+        fix_data => 'use this form exactly: 123 Fake Street, City, State, Zip',
+
+    },
+
+    date => {
+        human_readable => 'Date',
+        example        => '1995-12-25 is the christmas of 95',
+        regex          => '^\d{4,4}-\d{2,2}-\d{2,2}$',
+        fix_data       => 'use this form: yyyy-mm-dd .'
+    },
     first_name => {
         human_readable => "First Name",
         example        => "John",
@@ -77,17 +126,19 @@ our %forms = (
 
 );
 
-our $form_title           = "Enter Runners...";
-our @array_of_form_hashes = (
+our $form_title         = "Enter Runners...";
+our @insert_new_runners = (
     'first_name',        'last_name',
     'gender',            'year_of_birth',
-    'currently_on_team', 'years_running'
+    'currently_on_team', 
 );
 
 sub create_form {
     my $form_title = shift;
-    my (@form_fields) = @_;
+    my $insert_into_this_table = shift;
+	my (@form_fields) = @_;
     my ($current_file) = $0 =~ m'[^/]+(?=/$|$)';
+    print "<div class='container'><hr>";
     print
       "<form method='post' action='test.pl' ><div><h1>$form_title</h1></div>";
     unless (%errors) { undef %valid; }
@@ -121,6 +172,8 @@ sub create_form {
     print "</div>";
     print "<div><input type=\"submit\" value=\"Submit\" ></div>";
     print "</form>";
+
+    print "<hr></div>";
 }
 
 my $dbh = DBI->connect( 'dbi:mysql:team', 'team', 'teampasswd' );
@@ -140,10 +193,38 @@ our %functions = (
             return "True";
         }
     },
+
+    address_check => sub {
+        my ($data) = @_;
+        my ( $street_name_and_number, $city, $state, $zip ) =
+          split( ',', $data );
+	my $error;
+unless ($street_name_and_number =~ m/([0-9]+) ([a-zA-Z]+) ([a-zA-Z\.]+)/) {
+return;
+}
+unless ($city =~ m/[a-zA-Z]+/){
+return;
+}
+unless ($state =~ m/[a-zA-Z]+/){
+return;
+}
+unless ($zip =~ m/([0-9]{5,5})/){
+return;
+}
+
+return "true";
+
+
+
+    },
 );
 our @keys;
 our @values;
 our %valid;
+
+#@names =  $q->param;
+#foreach (@names){ print "$_ <br>";}
+
 
 foreach $key ( keys %hash ) {
     our $value = $q->param($key);
@@ -158,6 +239,14 @@ foreach $key ( keys %hash ) {
 
 $key_scalar   = join( ',', @keys );
 $value_scalar = join( ',', @values );
+
+
+
+
+
+
+
+
 
 our %errors;
 
@@ -178,16 +267,21 @@ sub validate_form2 {
 
             if ( $forms{$form_name}->{function} ) {
                 my ( $function, $args ) =
-                  $forms{$form_name}->{function} =~ m/^(.+)\((.+)\)$/;
-                @array = split( /,/, $args );
+                  $forms{$form_name}->{function} =~ m/^(.+)\((.*)\)$/;
+		my @array = split( /,/, $args );
                 push( @array, $form_data );
-                unless ( $functions{$function}->(@array) ) {
+    
+
+            unless ( $functions{$function}->(@array) ) {
 
                     unless ( $errors{$form_name} ) {
                         $errors{$form_name} = $forms{$form_name}{fix_data};
                     }
 
                 }
+
+
+
             }
         }
 
@@ -195,66 +289,94 @@ sub validate_form2 {
 
 }
 
-#create_form( $form_title, @array_of_form_hashes );
+create_form( "Enter New Runners Data", 'runners', @insert_new_runners );
+create_form( "Enter New Races", 'races' ,('alias' ,'location') );
+
+
+
+
+
+
 ################################### TO DO: MAKE SURE THAT THE $KEYS ARE A SUBSET OF THE COLUMS OF A THE TABLE.. IF NOT, THEN SKIP THEM
-my $sqlz = "INSERT INTO runners ($key_scalar) VALUES ($value_scalar)";
+#my $sqlz = "INSERT INTO runners ($key_scalar) VALUES ($value_scalar)";
 
 #print $sqlz;
 
-if ( !%errors and $key_scalar ) {
-    my $insert_data = $dbh->prepare($sqlz);
-    $insert_data->execute;
+
+sub send_sql {
+    my $sql     = shift;
+    my $do_work = $dbh->prepare($sql);
+    $do_work->execute;
+    return $do_work;
 }
 
 our %database_hash;
 
+our @runner_columns = hashify_database_query_by_pk_id( "runners", "pk_id" );
+our @race_columns = hashify_database_query_by_pk_id("races", "pk_id");
 
 
-hashify_database_query_by_pk_id("runners","pk_id");
+if ( !%errors and $key_scalar ) {
 
-sub hashify_database_query_by_pk_id{
+unless( array_minus (@keys, @runner_columns)) {my $sqlz = "INSERT INTO runners ($key_scalar) VALUES ($value_scalar)"; send_sql($sqlz);
+}
 
-our ($table,$pk_id_column_name) = @_;
+unless( array_minus (@keys, @race_columns)) {my $sqlz = "INSERT INTO races ($key_scalar) VALUES ($value_scalar)"; send_sql($sqlz); ;
+}
+}
 
-my $sql = "select * from $table";
+
+
+
+
+sub hashify_database_query_by_pk_id {
+
+    our ( $table, $pk_id_column_name ) = @_;
+
+    my $sql = "select * from $table";
+    our $sth = $dbh->prepare($sql);
+    $sth->execute;
+
+    our @fields = @{ $sth->{NAME} };
+    foreach my $field (@fields) {
+    }
+
+    while ( our $hash_ref = $sth->fetchrow_hashref ) {
+
+        foreach our $field (@fields) {
+            $database_hash{$table}{ $$hash_ref{$pk_id_column_name} }{$field} =
+              $$hash_ref{$field};
+        }
+
+    }
+    return @fields;
+}
+
+
+#print Dumper(\%database_hash);
+print_table( 'runners' , @runner_columns );
+print_table('races', @race_columns); 
+sub print_table {
+
+    my ($db_table)  = shift;
+
+    my @fields = @_;
+my $sql = "select * from $db_table";
 our $sth = $dbh->prepare($sql);
 $sth->execute;
 
 
 
 
-our @fields =  @{$sth->{NAME}};
-print (join ('  -   ',@fields));
-foreach my $field (@fields){
+    my $table  = HTML::Make->new('table');
+    my $tr     = $table->push('tr');
+    $tr->multiply( 'th', \@fields );
+    my $rows = $sth->fetchall_arrayref;
+
+    foreach my $row ( @{$rows} ) {
+        my $tr = $table->push('tr');
+        $tr->multiply( 'td', \@{$row} );
+    }
+    print $table->text();
 }
-
-while (our $hash_ref = $sth->fetchrow_hashref) {
-
-foreach our $field (@fields){
-$database_hash{$table}{$$hash_ref{$pk_id_column_name}}{$field}=$$hash_ref{$field};
-}
-print "<br>";
-
-
-
-}
-}
-
-print Dumper(\%database_hash);
-
-
-
-
-=table_stuff
-my $table = HTML::Make->new('table');
-my $tr    = $table->push('tr');
-$tr->multiply( 'th', \@{ $sth->{NAME} } );
-my $rows = $sth->fetchall_arrayref;
-
-foreach my $row ( @{$rows} ) {
-    my $tr = $table->push('tr');
-    $tr->multiply( 'td', \@{$row} );
-}
-print $table->text();
-=cut
 print $cgi->end_html;
