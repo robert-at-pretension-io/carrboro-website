@@ -14,21 +14,47 @@ $q    = new CGI::Simple;
 my $cgi = new CGI;
 print $cgi->header;
 
-
 #foreach my $keys (keys %hash){
 #foreach my $values ($hash{$keys}) {
 
 #print "key: $keys, value: $values.<br>";}}  #debugging
-
 
 print '
 
 <style>
 
 .container{
-width: 600px;
+width: 100%;
+border-top: 1px solid rgba(0, 0, 0, 0.1);
+padding: 20px;
+}
+h1{line-height: 40px;
+margin-bottom:20px;
+}
+
+.entry{
+margin-bottom:30px;
+clear:both;
+display: block;
+}
+td{
+background:rgba(0,0,0,.1);
+min-width: 50px;
+}
+
+table {
+min-width: 100%;	
+    font-size: 13px;
+    line-height: 25px;
+        padding: 20px;
+
+border-top: 1px solid rgba(0, 0, 0, 0.1); border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+clear:both;
 
 }
+
+
+
 
 td 
 {
@@ -40,11 +66,12 @@ th{
 padding:10px;
 }
 
-hr { border: 0; height: 0; border-top: 1px solid rgba(0, 0, 0, 0.1); border-bottom: 1px solid rgba(255, 255, 255, 0.3); padding:0; margin:0;}
+#hr { border: 0; height: 0; border-top: 1px solid rgba(0, 0, 0, 0.1); border-bottom: 1px solid rgba(255, 255, 255, 0.3); padding:0; }
 
 input{
 border:0;
-border-top: 1px solid rgba(0, 0, 0, 0.1); border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+border-bottom: 1px solid rgba(0, 0, 0, 0.1); 
+#border-bottom: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 
@@ -52,8 +79,8 @@ border-top: 1px solid rgba(0, 0, 0, 0.1); border-bottom: 1px solid rgba(255, 255
 
 
 #color:white;
-margin: 5px;
-padding: 5px;
+margin: 0px;
+padding: 0px;
 #background:rgba(100,0,140,0.4);
 }
 
@@ -61,14 +88,13 @@ padding: 5px;
 ';
 our %forms = (
 
-	alias =>  {
-	human_readable => 'Name of Race',
-	example => 'Cummings High School, Wendy\'s invitational, etc',
-	regex => '[a-zA-Z ]',
-	fix_data => 'use only letters and spaces.',
+    alias => {
+        human_readable => 'Name of Race',
+        example        => 'Cummings High School, Wendy\'s invitational, etc',
+        regex          => '[a-zA-Z ]',
+        fix_data       => 'use only letters and spaces.',
 
-
-},
+    },
 
     location => {
         human_readable => 'Address of Race',
@@ -126,23 +152,21 @@ our %forms = (
 
 );
 
-our $form_title         = "Enter Runners...";
-our @insert_new_runners = (
-    'first_name',        'last_name',
-    'gender',            'year_of_birth',
-    'currently_on_team', 
-);
+our $form_title = "Enter Runners...";
+our @insert_new_runners =
+  ( 'first_name', 'last_name', 'gender',  'currently_on_team',
+  );
 
 sub create_form {
-    my $form_title = shift;
+    my $form_title             = shift;
     my $insert_into_this_table = shift;
-	my (@form_fields) = @_;
+    my (@form_fields)          = @_;
     my ($current_file) = $0 =~ m'[^/]+(?=/$|$)';
-    print "<div class='container'><hr>";
-    print
-      "<form method='post' action='test.pl' ><div><h1>$form_title</h1></div>";
-    unless (%errors) { undef %valid; }
     print "<div class='container'>";
+    print
+      "<form method='post' action='test.pl' ><h1>$form_title</h1>";
+    unless (%errors) { undef %valid; }
+
     foreach my $field (@form_fields) {
 
         print "<div class=\"entry\">";
@@ -169,11 +193,10 @@ sub create_form {
 
         #print "$field->{human_readable}... Example: $field->{example}<br>\n";
     }
-    print "</div>";
-    print "<div><input type=\"submit\" value=\"Submit\" ></div>";
+    print "<input type=\"submit\" value=\"Submit\" >";
     print "</form>";
 
-    print "<hr></div>";
+    print "</div>";
 }
 
 my $dbh = DBI->connect( 'dbi:mysql:team', 'team', 'teampasswd' );
@@ -198,23 +221,23 @@ our %functions = (
         my ($data) = @_;
         my ( $street_name_and_number, $city, $state, $zip ) =
           split( ',', $data );
-	my $error;
-unless ($street_name_and_number =~ m/([0-9]+) ([a-zA-Z]+) ([a-zA-Z\.]+)/) {
-return;
-}
-unless ($city =~ m/[a-zA-Z]+/){
-return;
-}
-unless ($state =~ m/[a-zA-Z]+/){
-return;
-}
-unless ($zip =~ m/([0-9]{5,5})/){
-return;
-}
+        my $error;
+        unless (
+            $street_name_and_number =~ m/([0-9]+) ([a-zA-Z]+) ([a-zA-Z\.]+)/ )
+        {
+            return;
+        }
+        unless ( $city =~ m/[a-zA-Z]+/ ) {
+            return;
+        }
+        unless ( $state =~ m/[a-zA-Z]+/ ) {
+            return;
+        }
+        unless ( $zip =~ m/([0-9]{5,5})/ ) {
+            return;
+        }
 
-return "true";
-
-
+        return "true";
 
     },
 );
@@ -224,7 +247,6 @@ our %valid;
 
 #@names =  $q->param;
 #foreach (@names){ print "$_ <br>";}
-
 
 foreach $key ( keys %hash ) {
     our $value = $q->param($key);
@@ -239,14 +261,6 @@ foreach $key ( keys %hash ) {
 
 $key_scalar   = join( ',', @keys );
 $value_scalar = join( ',', @values );
-
-
-
-
-
-
-
-
 
 our %errors;
 
@@ -268,19 +282,16 @@ sub validate_form2 {
             if ( $forms{$form_name}->{function} ) {
                 my ( $function, $args ) =
                   $forms{$form_name}->{function} =~ m/^(.+)\((.*)\)$/;
-		my @array = split( /,/, $args );
+                my @array = split( /,/, $args );
                 push( @array, $form_data );
-    
 
-            unless ( $functions{$function}->(@array) ) {
+                unless ( $functions{$function}->(@array) ) {
 
                     unless ( $errors{$form_name} ) {
                         $errors{$form_name} = $forms{$form_name}{fix_data};
                     }
 
                 }
-
-
 
             }
         }
@@ -289,19 +300,13 @@ sub validate_form2 {
 
 }
 
-create_form( "Enter New Runners Data", 'runners', @insert_new_runners );
-create_form( "Enter New Races", 'races' ,('alias' ,'location') );
-
-
-
-
-
+create_form( "Enter New Runners", 'runners', @insert_new_runners );
+create_form( "Enter New Race Locations", 'races', ( 'alias', 'location' ) );
 
 ################################### TO DO: MAKE SURE THAT THE $KEYS ARE A SUBSET OF THE COLUMS OF A THE TABLE.. IF NOT, THEN SKIP THEM
 #my $sqlz = "INSERT INTO runners ($key_scalar) VALUES ($value_scalar)";
 
 #print $sqlz;
-
 
 sub send_sql {
     my $sql     = shift;
@@ -313,21 +318,20 @@ sub send_sql {
 our %database_hash;
 
 our @runner_columns = hashify_database_query_by_pk_id( "runners", "pk_id" );
-our @race_columns = hashify_database_query_by_pk_id("races", "pk_id");
-
+our @race_columns   = hashify_database_query_by_pk_id( "races",   "pk_id" );
 
 if ( !%errors and $key_scalar ) {
 
-unless( array_minus (@keys, @runner_columns)) {my $sqlz = "INSERT INTO runners ($key_scalar) VALUES ($value_scalar)"; send_sql($sqlz);
+    unless ( array_minus( @keys, @runner_columns ) ) {
+        my $sqlz = "INSERT INTO runners ($key_scalar) VALUES ($value_scalar)";
+        send_sql($sqlz);
+    }
+
+    unless ( array_minus( @keys, @race_columns ) ) {
+        my $sqlz = "INSERT INTO races ($key_scalar) VALUES ($value_scalar)";
+        send_sql($sqlz);
+    }
 }
-
-unless( array_minus (@keys, @race_columns)) {my $sqlz = "INSERT INTO races ($key_scalar) VALUES ($value_scalar)"; send_sql($sqlz); ;
-}
-}
-
-
-
-
 
 sub hashify_database_query_by_pk_id {
 
@@ -353,23 +357,39 @@ sub hashify_database_query_by_pk_id {
 }
 
 
+
+sub human_readable_label {
+@data_label = @_;
+my @human_readable;
+foreach my $label (@data_label)
+{
+if ($forms{$label}{human_readable}){push (@human_readable, $forms{$label}{human_readable}); }
+
+else{push (@human_readable,"Unique ID #")}
+}
+return @human_readable;
+
+}
+
+
+
 #print Dumper(\%database_hash);
-print_table( 'runners' , @runner_columns );
-print_table('races', @race_columns); 
+print_table( 'runners', @runner_columns );
+print_table( 'races',   @race_columns );
+
 sub print_table {
 
-    my ($db_table)  = shift;
+    my ($db_table) = shift;
 
     my @fields = @_;
-my $sql = "select * from $db_table";
-our $sth = $dbh->prepare($sql);
-$sth->execute;
+    my $sql    = "select * from $db_table";
+    our $sth = $dbh->prepare($sql);
+    $sth->execute;
 
-
-
-
-    my $table  = HTML::Make->new('table');
-    my $tr     = $table->push('tr');
+	@fields =human_readable_label(@fields); #use this after done debugging
+	
+    my $table = HTML::Make->new('table');
+    my $tr    = $table->push('tr');
     $tr->multiply( 'th', \@fields );
     my $rows = $sth->fetchall_arrayref;
 
@@ -377,6 +397,7 @@ $sth->execute;
         my $tr = $table->push('tr');
         $tr->multiply( 'td', \@{$row} );
     }
+	
     print $table->text();
 }
 print $cgi->end_html;
