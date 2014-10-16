@@ -14,6 +14,8 @@ $q    = new CGI::Simple;
 my $cgi = new CGI;
 print $cgi->header;
 
+my $dbh = DBI->connect( 'dbi:mysql:team', 'team', 'teampasswd' );
+
 #foreach my $keys (keys %hash){
 #foreach my $values ($hash{$keys}) {
 
@@ -24,7 +26,8 @@ print '
 <style>
 
 .container{
-width: 100%;
+float:left;
+width: 44%;
 border-top: 1px solid rgba(0, 0, 0, 0.1);
 padding: 20px;
 }
@@ -86,6 +89,93 @@ padding: 0px;
 
 </style>
 ';
+
+sub column_names {
+    our ($table) = @_;
+    our @array_of_database;
+    my $sql = "select * from $table";
+    our $sth = $dbh->prepare($sql);
+    $sth->execute;
+
+    our @fields = @{ $sth->{NAME} };
+    foreach my $field (@fields) {
+    }
+    return @fields;
+}
+
+sub hashify_database_table {
+
+    our ($table) = @_;
+    our @array_of_database;
+    my $sql = "select * from $table";
+    our $sth = $dbh->prepare($sql);
+    $sth->execute;
+
+    our @fields = @{ $sth->{NAME} };
+    foreach my $field (@fields) {
+    }
+
+    while ( our $hash_ref = $sth->fetchrow_hashref ) {
+
+        my %hash;
+        foreach our $field (@fields) {
+
+            $hash{$field} = $$hash_ref{$field};
+        }
+
+        push @array_of_database, \%hash;
+    }
+    return @array_of_database;
+}
+
+#print Dumper(@array_of_database);
+
+
+
+sub select_runners {
+
+
+    #print Dumper(@array);
+    #select a location
+    #wtih a drop down list of all the locations
+
+    print "<form>";
+
+    print "<select name='Race Locations'>";
+
+    foreach our $hash_ref (@races) {
+        if ( ${$hash_ref}{alias} ) {
+            print
+"<option value='${$hash_ref}{alias}'>${$hash_ref}{alias}</option>";
+
+        }
+    }
+    print "</select>";
+
+    #print Dumper(@runners);
+    #select the runners
+    foreach our $hash_ref (@runners) {
+        if ( ${$hash_ref}{first_name} ) {
+            our $full_name = "${$hash_ref}{first_name} ${$hash_ref}{last_name}";
+        }
+        if ($full_name) {
+            print
+"<input type='checkbox' name='full_name' value='$full_name'> $full_name";
+        }
+    }
+
+    #enter the date
+
+    print "</form>";
+
+}
+
+sub enter_results {
+
+    #foreach database result where there is a null value for race time
+
+}
+
 our %forms = (
 
     alias => {
@@ -150,12 +240,17 @@ our %forms = (
         human_readable => "Currently on Team?",
     },
 
+    phone_number => {
+        regex          => '(\(?[0-9]{3,3}\)?)?\s*[0-9]{3,3}\s*-?[0-9]{4,4}',
+        fix_data       => 'Please enter a valid phone number.',
+        human_readable => 'Phone number',
+    },
+
 );
 
 our $form_title = "Enter Runners...";
 our @insert_new_runners =
-  ( 'first_name', 'last_name', 'gender',  'currently_on_team',
-  );
+  ( 'first_name', 'last_name', 'gender', 'currently_on_team', );
 
 sub create_form {
     my $form_title             = shift;
@@ -163,8 +258,7 @@ sub create_form {
     my (@form_fields)          = @_;
     my ($current_file) = $0 =~ m'[^/]+(?=/$|$)';
     print "<div class='container'>";
-    print
-      "<form method='post' action='test.pl' ><h1>$form_title</h1>";
+    print "<form method='post' action='test.pl' ><h1>$form_title</h1>";
     unless (%errors) { undef %valid; }
 
     foreach my $field (@form_fields) {
@@ -173,7 +267,7 @@ sub create_form {
         if ( $forms{$field} ) {
             if ( $errors{$field} ) {
                 print
-"<input placeholder=\"$forms{$field}{human_readable}\" type=\"text\" name=\"$field\" ><b>Please $errors{$field}</b>";
+"<input placeholder=\"$forms{$field}{human_readable}\" type=\"text\" name=\"$field\" ><br><b>Please $errors{$field}</b>";
             }
             else {
                 if ( $valid{$field} ) {
@@ -199,7 +293,6 @@ sub create_form {
     print "</div>";
 }
 
-my $dbh = DBI->connect( 'dbi:mysql:team', 'team', 'teampasswd' );
 $column_info = $dbh->column_info( undef, undef, "runners", undef )
   or die "dang, $!";
 $column_info_ref = $column_info->fetchall_arrayref;
@@ -303,6 +396,8 @@ sub validate_form2 {
 create_form( "Enter New Runners", 'runners', @insert_new_runners );
 create_form( "Enter New Race Locations", 'races', ( 'alias', 'location' ) );
 
+#create_form( "Phone number", 'blah', 'phone_number');
+
 ################################### TO DO: MAKE SURE THAT THE $KEYS ARE A SUBSET OF THE COLUMS OF A THE TABLE.. IF NOT, THEN SKIP THEM
 #my $sqlz = "INSERT INTO runners ($key_scalar) VALUES ($value_scalar)";
 
@@ -317,8 +412,8 @@ sub send_sql {
 
 our %database_hash;
 
-our @runner_columns = hashify_database_query_by_pk_id( "runners", "pk_id" );
-our @race_columns   = hashify_database_query_by_pk_id( "races",   "pk_id" );
+our @runner_columns = column_names("runners");
+our @race_columns   = column_names( "races", );
 
 if ( !%errors and $key_scalar ) {
 
@@ -333,50 +428,29 @@ if ( !%errors and $key_scalar ) {
     }
 }
 
-sub hashify_database_query_by_pk_id {
-
-    our ( $table, $pk_id_column_name ) = @_;
-
-    my $sql = "select * from $table";
-    our $sth = $dbh->prepare($sql);
-    $sth->execute;
-
-    our @fields = @{ $sth->{NAME} };
-    foreach my $field (@fields) {
-    }
-
-    while ( our $hash_ref = $sth->fetchrow_hashref ) {
-
-        foreach our $field (@fields) {
-            $database_hash{$table}{ $$hash_ref{$pk_id_column_name} }{$field} =
-              $$hash_ref{$field};
+sub human_readable_label {
+    @data_label = @_;
+    my @human_readable;
+    foreach my $label (@data_label) {
+        if ( $forms{$label}{human_readable} ) {
+            push( @human_readable, $forms{$label}{human_readable} );
         }
 
+        else { push( @human_readable, "Unique ID #" ) }
     }
-    return @fields;
-}
-
-
-
-sub human_readable_label {
-@data_label = @_;
-my @human_readable;
-foreach my $label (@data_label)
-{
-if ($forms{$label}{human_readable}){push (@human_readable, $forms{$label}{human_readable}); }
-
-else{push (@human_readable,"Unique ID #")}
-}
-return @human_readable;
+    return @human_readable;
 
 }
-
-
 
 #print Dumper(\%database_hash);
 print_table( 'runners', @runner_columns );
 print_table( 'races',   @race_columns );
 
+    our @runners = hashify_database_table('runners');
+our @races = hashify_database_table('races');
+
+
+select_runners();
 sub print_table {
 
     my ($db_table) = shift;
@@ -386,8 +460,8 @@ sub print_table {
     our $sth = $dbh->prepare($sql);
     $sth->execute;
 
-	@fields =human_readable_label(@fields); #use this after done debugging
-	
+    @fields = human_readable_label(@fields);    #use this after done debugging
+
     my $table = HTML::Make->new('table');
     my $tr    = $table->push('tr');
     $tr->multiply( 'th', \@fields );
@@ -397,7 +471,7 @@ sub print_table {
         my $tr = $table->push('tr');
         $tr->multiply( 'td', \@{$row} );
     }
-	
+
     print $table->text();
 }
 print $cgi->end_html;
