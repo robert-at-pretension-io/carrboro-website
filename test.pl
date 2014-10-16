@@ -175,7 +175,7 @@ foreach our $hash_ref (@runners) {
             our $full_name = "${$hash_ref}{first_name} ${$hash_ref}{last_name}";
         if ($full_name) {
             print
-"<div class='checkboxes'><input type='checkbox' name='runners' value='${$hash_ref}{pk_id} '> $full_name </div>";
+"<div class='checkboxes'><input type='checkbox' name='runner' value='${$hash_ref}{pk_id} '> $full_name </div>";
         }
     }
 
@@ -290,7 +290,7 @@ our %forms = (
         human_readable => 'Phone number',
     },
 
-runners => {
+runner => {
 regex => '\d',
 fix_data => 'Something is broken, contact elliot',
 human_readable => 'Runner ID Number',
@@ -302,6 +302,20 @@ regex => '\d',
 fix_data => 'Something is broken, contact elliot',
 human_readable => 'Race ID Number',
 },
+
+minutes => {
+regex => '\d{0,2}',
+fix_data => 'Please enter 2 numbers.',
+human_readable => "Minutes",
+},
+
+seconds => {
+regex => '\d{0,2}',
+fix_data => 'Please enter 2 numbers.',
+human_readable => "Seconds",
+},
+
+
 );
 
 our $form_title = "Enter Runners...";
@@ -470,6 +484,9 @@ our %database_hash;
 
 our @runner_columns = column_names("runners");
 our @race_columns   = column_names( "races", );
+our @results_columns = column_names('results');
+
+print "@keys";
 
 if ( !%errors and $key_scalar ) {
 
@@ -482,6 +499,14 @@ if ( !%errors and $key_scalar ) {
         my $sqlz = "INSERT INTO races ($key_scalar) VALUES ($value_scalar)";
         send_sql($sqlz);
     }
+
+    unless ( array_minus( @keys, @results_columns ) ) {
+        my $sqlz = "INSERT INTO results ($key_scalar) VALUES ($value_scalar)";
+        send_sql($sqlz);
+	print "$sqlz <br>";    
+}
+
+
 }
 
 sub human_readable_label {
@@ -501,7 +526,7 @@ sub human_readable_label {
 #print Dumper(\%database_hash);
 print_table( 'runners', @runner_columns );
 print_table( 'races',   @race_columns );
-
+print_table('results',@results_columns);
     our @runners = hashify_database_table('runners');
 our @races = hashify_database_table('races');
 
