@@ -16,29 +16,43 @@ print $cgi->header;
 
 my $dbh = DBI->connect( 'dbi:mysql:team', 'team', 'teampasswd' );
 
-#foreach my $keys (keys %hash){
-#foreach my $values ($hash{$keys}) {
+foreach my $keys (keys %hash){
+foreach my $values ($hash{$keys}) {
 
-#print "key: $keys, value: $values.<br>";}}  #debugging
+print "key: $keys, value: $values.<br>";}}  #debugging
 
 print '
 
 <style>
 
-.container{
+
+
+.half_container{
 float:left;
-width: 44%;
+width: 47%;
 border-top: 1px solid rgba(0, 0, 0, 0.1);
 padding: 20px;
 }
+
+.full_container{
+width: 100%;
+border-top: 1px solid rgba(0, 0, 0, 0.1);
+padding: 20px;
+}
+
+.checkboxes{
+padding:20px;
+float:left;
+}
+
+
 h1{line-height: 40px;
 margin-bottom:20px;
 }
 
 .entry{
 margin-bottom:30px;
-clear:both;
-display: block;
+width:350px;
 }
 td{
 background:rgba(0,0,0,.1);
@@ -75,6 +89,7 @@ input{
 border:0;
 border-bottom: 1px solid rgba(0, 0, 0, 0.1); 
 #border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+
 }
 
 
@@ -138,35 +153,64 @@ sub select_runners {
     #print Dumper(@array);
     #select a location
     #wtih a drop down list of all the locations
-
+print "<div class='full_container'>";
     print "<form>";
 
-    print "<select name='Race Locations'>";
+
+print "<h1>Enter Past or Upcoming Races</h1>";
+    print "<select name='races'>";
 
     foreach our $hash_ref (@races) {
         if ( ${$hash_ref}{alias} ) {
             print
-"<option value='${$hash_ref}{alias}'>${$hash_ref}{alias}</option>";
+"<option value='${$hash_ref}{races_pk_id} '>${$hash_ref}{alias}</option>";
 
         }
     }
-    print "</select>";
+    print "</select><br>";
 
     #print Dumper(@runners);
     #select the runners
-    foreach our $hash_ref (@runners) {
-        if ( ${$hash_ref}{first_name} ) {
+foreach our $hash_ref (@runners) {
             our $full_name = "${$hash_ref}{first_name} ${$hash_ref}{last_name}";
-        }
         if ($full_name) {
             print
-"<input type='checkbox' name='full_name' value='$full_name'> $full_name";
+"<div class='checkboxes'><input type='checkbox' name='runners' value='${$hash_ref}{pk_id} '> $full_name </div>";
         }
     }
 
+
+        print "<div class=\"entry\">";
+our $field = 'date';
+        if ( $forms{$field} ) {
+            if ( $errors{$field} ) {
+                print
+"<input placeholder=\"$forms{$field}{human_readable}\" type=\"text\" name=\"$field\" ><br><b>Please $errors{$field}</b>";
+            }
+            else {
+                if ( $valid{$field} ) {
+
+                    print
+"$forms{$field}{human_readable}: <input type=\"text\" name=\"$field\" value=\"$valid{$field}\">";
+                }
+                else {
+
+                    print
+"<input placeholder=\"$forms{$field}{human_readable}\" type=\"text\" name=\"$field\">";
+                }
+
+            }
+        }
+        print "</div>";
+
+
+
+
+	
+    print "<input type=\"submit\" value=\"Submit\" >";
     #enter the date
 
-    print "</form>";
+    print "</form></div>";
 
 }
 
@@ -246,6 +290,18 @@ our %forms = (
         human_readable => 'Phone number',
     },
 
+runners => {
+regex => '\d',
+fix_data => 'Something is broken, contact elliot',
+human_readable => 'Runner ID Number',
+},
+
+
+races => {
+regex => '\d',
+fix_data => 'Something is broken, contact elliot',
+human_readable => 'Race ID Number',
+},
 );
 
 our $form_title = "Enter Runners...";
@@ -257,7 +313,7 @@ sub create_form {
     my $insert_into_this_table = shift;
     my (@form_fields)          = @_;
     my ($current_file) = $0 =~ m'[^/]+(?=/$|$)';
-    print "<div class='container'>";
+    print "<div class='half_container'>";
     print "<form method='post' action='test.pl' ><h1>$form_title</h1>";
     unless (%errors) { undef %valid; }
 
@@ -273,7 +329,7 @@ sub create_form {
                 if ( $valid{$field} ) {
 
                     print
-" $forms{$field}{human_readable}: <input type=\"text\" name=\"$field\" value=\"$valid{$field}\">";
+"$forms{$field}{human_readable}: <input type=\"text\" name=\"$field\" value=\"$valid{$field}\">";
                 }
                 else {
 
