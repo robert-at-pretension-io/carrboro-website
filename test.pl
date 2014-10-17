@@ -16,10 +16,12 @@ print $cgi->header;
 
 my $dbh = DBI->connect( 'dbi:mysql:team', 'team', 'teampasswd' );
 
-foreach my $keys (keys %hash){
-foreach my $values ($hash{$keys}) {
+#foreach my $keys ( keys %hash ) {
+#    foreach my $values ( $hash{$keys} ) {
 
-print "key: $keys, value: $values.<br>";}}  #debugging
+#        print "key: $keys, value: $values.<br>";
+#    }
+#}    #debugging
 
 print '
 
@@ -53,6 +55,7 @@ margin-bottom:20px;
 .entry{
 margin-bottom:30px;
 width:350px;
+clear:both;
 }
 td{
 background:rgba(0,0,0,.1);
@@ -113,8 +116,6 @@ sub column_names {
     $sth->execute;
 
     our @fields = @{ $sth->{NAME} };
-    foreach my $field (@fields) {
-    }
     return @fields;
 }
 
@@ -135,7 +136,7 @@ sub hashify_database_table {
         my %hash;
         foreach our $field (@fields) {
 
-            $hash{$field} = $$hash_ref{$field};
+            $hash{$table}{$field} = $$hash_ref{$field};
         }
 
         push @array_of_database, \%hash;
@@ -143,71 +144,62 @@ sub hashify_database_table {
     return @array_of_database;
 }
 
-#print Dumper(@array_of_database);
-
-
 
 sub select_runners {
-
-
-    #print Dumper(@array);
     #select a location
     #wtih a drop down list of all the locations
-print "<div class='full_container'>";
+
+    print "<div class='full_container'>";
     print "<form>";
 
-
-print "<h1>Enter Past or Upcoming Races</h1>";
+    print "<h1>Enter Past or Upcoming Races</h1>";
     print "<select name='races'>";
 
     foreach our $hash_ref (@races) {
-        if ( ${$hash_ref}{alias} ) {
+        if ( ${$hash_ref}{races}{alias} ) {
             print
-"<option value='${$hash_ref}{races_pk_id} '>${$hash_ref}{alias}</option>";
+"<option value='${$hash_ref}{races}{races_pk_id} '>${$hash_ref}{races}{alias}</option>";
 
         }
     }
     print "</select><br>";
 
-    #print Dumper(@runners);
     #select the runners
-foreach our $hash_ref (@runners) {
-            our $full_name = "${$hash_ref}{first_name} ${$hash_ref}{last_name}";
+    foreach our $hash_ref (@runners) {
+if(${$hash_ref}{runners}){        
+our $full_name = "${$hash_ref}{runners}{first_name} ${$hash_ref}{runners}{last_name}";
         if ($full_name) {
             print
-"<div class='checkboxes'><input type='checkbox' name='runner' value='${$hash_ref}{pk_id} '> $full_name </div>";
+"<div class='checkboxes'><input type='checkbox' name='runner' value='${$hash_ref}{runners}{pk_id} '> $full_name </div>";
         }
-    }
-
-
-        print "<div class=\"entry\">";
-our $field = 'date';
-        if ( $forms{$field} ) {
-            if ( $errors{$field} ) {
-                print
+    
+}
+}
+    print "<div class=\"entry\">";
+    our $field = 'date';
+    if ( $forms{$field} ) {
+        if ( $errors{$field} ) {
+            print
 "<input placeholder=\"$forms{$field}{human_readable}\" type=\"text\" name=\"$field\" ><br><b>Please $errors{$field}</b>";
+        }
+        else {
+            if ( $valid{$field} ) {
+
+                print
+"$forms{$field}{human_readable}: <input type=\"text\" name=\"$field\" value=\"$valid{$field}\">";
             }
             else {
-                if ( $valid{$field} ) {
 
-                    print
-"$forms{$field}{human_readable}: <input type=\"text\" name=\"$field\" value=\"$valid{$field}\">";
-                }
-                else {
-
-                    print
+                print
 "<input placeholder=\"$forms{$field}{human_readable}\" type=\"text\" name=\"$field\">";
-                }
-
             }
+
         }
-        print "</div>";
+    }
+    print "</div>";
 
-
-
-
-	
     print "<input type=\"submit\" value=\"Submit\" >";
+
     #enter the date
 
     print "</form></div>";
@@ -290,31 +282,29 @@ our %forms = (
         human_readable => 'Phone number',
     },
 
-runner => {
-regex => '\d',
-fix_data => 'Something is broken, contact elliot',
-human_readable => 'Runner ID Number',
-},
+    runner => {
+        regex          => '\d',
+        fix_data       => 'Something is broken, contact elliot',
+        human_readable => 'Runner Name',
+    },
 
+    races => {
+        regex          => '\d',
+        fix_data       => 'Something is broken, contact elliot',
+        human_readable => 'Race Name',
+    },
 
-races => {
-regex => '\d',
-fix_data => 'Something is broken, contact elliot',
-human_readable => 'Race ID Number',
-},
+    minutes => {
+        regex          => '\d{0,2}',
+        fix_data       => 'Please enter 2 numbers.',
+        human_readable => "Minutes",
+    },
 
-minutes => {
-regex => '\d{0,2}',
-fix_data => 'Please enter 2 numbers.',
-human_readable => "Minutes",
-},
-
-seconds => {
-regex => '\d{0,2}',
-fix_data => 'Please enter 2 numbers.',
-human_readable => "Seconds",
-},
-
+    seconds => {
+        regex          => '\d{0,2}',
+        fix_data       => 'Please enter 2 numbers.',
+        human_readable => "Seconds",
+    },
 
 );
 
@@ -482,11 +472,10 @@ sub send_sql {
 
 our %database_hash;
 
-our @runner_columns = column_names("runners");
-our @race_columns   = column_names( "races", );
+our @runner_columns  = column_names("runners");
+our @race_columns    = column_names( "races", );
 our @results_columns = column_names('results');
 
-print "@keys";
 
 if ( !%errors and $key_scalar ) {
 
@@ -503,9 +492,7 @@ if ( !%errors and $key_scalar ) {
     unless ( array_minus( @keys, @results_columns ) ) {
         my $sqlz = "INSERT INTO results ($key_scalar) VALUES ($value_scalar)";
         send_sql($sqlz);
-	print "$sqlz <br>";    
-}
-
+    }
 
 }
 
@@ -526,12 +513,65 @@ sub human_readable_label {
 #print Dumper(\%database_hash);
 print_table( 'runners', @runner_columns );
 print_table( 'races',   @race_columns );
-print_table('results',@results_columns);
-    our @runners = hashify_database_table('runners');
-our @races = hashify_database_table('races');
 
+our @results = hashify_database_table('results');
+
+foreach our $hash_ref (@results) {
+    $get_this_pk_id = ${$hash_ref}{results}{runner};
+    if ($get_this_pk_id) {
+        our $handle = send_sql(
+"select first_name, last_name from runners where pk_id='$get_this_pk_id'"
+        );
+        our ( $first_name, $last_name ) = $handle->fetchrow_array();
+        ${$hash_ref}{results}{runner} = "$first_name $last_name";
+    }
+}
+
+foreach our $hash_ref (@results) {
+    $get_this_pk_id = ${$hash_ref}{results}{races};
+    if ($get_this_pk_id) {
+        our $handle = send_sql(
+            "select alias from races where races_pk_id='$get_this_pk_id'");
+        our ($alias) = $handle->fetchrow_array();
+        ${$hash_ref}{results}{races} = "$alias";
+    }
+}
+
+
+print_table2( 'results', @results );
+
+sub print_table2 {
+    my ($db_table) = shift;
+    my (@db)       = @_;
+
+    my $handle = send_sql("select * from $db_table");
+
+    our @fields = @{ $handle->{NAME} };
+our @human_readable_fields = human_readable_label(@fields);
+    my $table = HTML::Make->new('table');
+    my $tr    = $table->push('tr');
+    $tr->multiply( 'th', \@human_readable_fields );
+
+    foreach our $hash_ref (@db) {
+        my @temp_array;
+        foreach our $column (@fields) {
+            push @temp_array, ${$hash_ref}{$db_table}{$column};
+        }
+        if (@temp_array) {
+            my $tr = $table->push('tr');
+            $tr->multiply( 'td', \@temp_array );
+        }
+
+    }
+
+    print $table->text();
+}
+
+our @runners = hashify_database_table('runners');
+our @races   = hashify_database_table('races');
 
 select_runners();
+
 sub print_table {
 
     my ($db_table) = shift;
