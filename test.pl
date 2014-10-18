@@ -16,12 +16,56 @@ print $cgi->header;
 
 my $dbh = DBI->connect( 'dbi:mysql:team', 'team', 'teampasswd' );
 
-#foreach my $keys ( keys %hash ) {
-#    foreach my $values ( $hash{$keys} ) {
+foreach my $keys ( keys %hash ) {
 
-#        print "key: $keys, value: $values.<br>";
-#    }
-#}    #debugging
+    foreach my $values ( $hash{$keys} ) {
+
+        our (%single_value, %multi_values);
+	our @array = split( / /, $values );
+	if (scalar(@array) <= 1 or $keys =~ m'first_name|alias') {$single_value{$keys}=$values;}
+	else{ $multi_values{$keys}=$values;}
+
+
+=derp
+        foreach (@array) {
+            print "key: $keys, value: '$_'.<br>";
+        }
+=cut
+
+    }
+
+}    #debugging
+
+
+#print Dumper(%single_value);
+#print Dumper(%multi_values);
+
+our @full_array;
+foreach $key (keys %multi_values){
+my @values = split( / /, $multi_values{$key} );
+
+foreach $value (@values)
+
+{ 
+my @small_array;
+foreach $inner_key (keys %single_value){
+
+foreach $inner_key_value ($single_value{$inner_key}){
+my %hash = ($inner_key => $single_value{$inner_key});
+push @small_array, \%hash;
+}
+}
+my %new_hash = ($key => $value);
+push @small_array, \%new_hash;
+push @full_array, \@small_array;
+#print Dumper(@small_array);
+
+}
+
+#print $multi_values{$key};
+
+}
+#print Dumper(@full_array);
 
 print '
 
@@ -144,8 +188,8 @@ sub hashify_database_table {
     return @array_of_database;
 }
 
-
 sub select_runners {
+
     #select a location
     #wtih a drop down list of all the locations
 
@@ -166,15 +210,16 @@ sub select_runners {
 
     #select the runners
     foreach our $hash_ref (@runners) {
-if(${$hash_ref}{runners}){        
-our $full_name = "${$hash_ref}{runners}{first_name} ${$hash_ref}{runners}{last_name}";
-        if ($full_name) {
-            print
+        if ( ${$hash_ref}{runners} ) {
+            our $full_name =
+"${$hash_ref}{runners}{first_name} ${$hash_ref}{runners}{last_name}";
+            if ($full_name) {
+                print
 "<div class='checkboxes'><input type='checkbox' name='runner' value='${$hash_ref}{runners}{pk_id} '> $full_name </div>";
+            }
+
         }
-    
-}
-}
+    }
     print "<div class=\"entry\">";
     our $field = 'date';
     if ( $forms{$field} ) {
@@ -401,7 +446,13 @@ our %valid;
 #@names =  $q->param;
 #foreach (@names){ print "$_ <br>";}
 
+
+
+
+
 foreach $key ( keys %hash ) {
+
+    #print "$key points to $hash{$key}";
     our $value = $q->param($key);
     validate_form2( $key, $value );
     unless ( $errors{$key} ) {
@@ -476,7 +527,6 @@ our @runner_columns  = column_names("runners");
 our @race_columns    = column_names( "races", );
 our @results_columns = column_names('results');
 
-
 if ( !%errors and $key_scalar ) {
 
     unless ( array_minus( @keys, @runner_columns ) ) {
@@ -537,7 +587,6 @@ foreach our $hash_ref (@results) {
     }
 }
 
-
 print_table2( 'results', @results );
 
 sub print_table2 {
@@ -546,8 +595,8 @@ sub print_table2 {
 
     my $handle = send_sql("select * from $db_table");
 
-    our @fields = @{ $handle->{NAME} };
-our @human_readable_fields = human_readable_label(@fields);
+    our @fields                = @{ $handle->{NAME} };
+    our @human_readable_fields = human_readable_label(@fields);
     my $table = HTML::Make->new('table');
     my $tr    = $table->push('tr');
     $tr->multiply( 'th', \@human_readable_fields );
@@ -596,3 +645,8 @@ sub print_table {
     print $table->text();
 }
 print $cgi->end_html;
+
+#todo: when entering past or upcoming races enter ALL of the values from the keys (not just the first)
+#add better validation for the date entry
+#enter race results in the results database when there are no entries for minutes or seconds
+
