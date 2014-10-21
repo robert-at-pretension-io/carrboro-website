@@ -6,66 +6,268 @@ use DBD::mysql;
 use CGI::Carp qw(fatalsToBrowser warningsToBrowser);
 warningsToBrowser(1);
 use Data::Dumper;
+
 use HTML::Make;
 use CGI::Simple;
 use Array::Utils qw(:all);
-$q    = new CGI::Simple;
-%hash = $q->Vars;
+use Scalar::Util qw(looks_like_number);
+$q = CGI::Simple->new;
+our %hash = $q->Vars;
 my $cgi = new CGI;
 print $cgi->header;
 
+$Data::Dumper::Useqq = 1;
+
 my $dbh = DBI->connect( 'dbi:mysql:team', 'team', 'teampasswd' );
+our @runner_columns  = column_names("runners");
+our @race_columns    = column_names( "races", );
+our @results_columns = column_names('results');
+
+our %forms = (
+
+    alias => {
+        human_readable => 'Name of Race',
+        example        => 'Cummings High School, Wendy\'s invitational, etc',
+        regex          => '[a-zA-Z ]',
+        fix_data       => 'use only letters and spaces.',
+
+    },
+
+    location => {
+        human_readable => 'Address of Race',
+        example        => '123 Fake Street, City/Town, State, Zip',
+        function       => 'address_check()',
+        fix_data => 'use this form exactly: 123 Fake Street, City, State, Zip',
+
+    },
+
+    date => {
+        human_readable => 'Date',
+        example        => '1995-12-25 is the christmas of 95',
+        regex          => '^\d{4,4}-\d{2,2}-\d{2,2}$',
+        fix_data       => 'use this form: yyyy-mm-dd .',
+        function       => 'my_date()',
+    },
+    first_name => {
+        human_readable => "First Name",
+        example        => "John",
+        regex          => '^[a-zA-Z\']{1,15}$',
+        fix_data       => 'use letters from the english alphabet only.'
+    },
+
+    last_name => {
+        human_readable => "Last Name",
+        example        => "Smith",
+        regex          => '^[a-zA-Z\'-]{1,15}$',
+        fix_data       => 'use letters from the english alphabet only.'
+    },
+
+    gender => {
+        regex          => '^[mf]{1,1}$',
+        fix_data       => 'enter m or f.',
+        human_readable => "Gender",
+    },
+
+    years_running => {
+        regex          => '^\d{1,2}$',
+        function       => 'range(0,20)',
+        fix_data       => 'enter 0 through 19.',
+        human_readable => "Years Running",
+    },
+
+    year_of_birth => {
+        regex          => '^[0-9]{4,4}$',
+        function       => 'range(1900,2099)',
+        fix_data       => 'enter 1900 through 2099.',
+        human_readable => "Year of Birth"
+    },
+
+    currently_on_team => {
+        regex          => '^[yn]{1,1}$',
+        fix_data       => 'enter either y or n.',
+        human_readable => "Currently on Team?",
+    },
+
+    phone_number => {
+        regex          => '(\(?[0-9]{3,3}\)?)?\s*[0-9]{3,3}\s*-?[0-9]{4,4}',
+        fix_data       => 'Please enter a valid phone number.',
+        human_readable => 'Phone number',
+    },
+
+    runner => {
+        regex          => '\d',
+        fix_data       => 'Something is broken, contact elliot',
+        human_readable => 'Runner Name',
+    },
+
+    races => {
+        regex          => '\d',
+        fix_data       => 'Something is broken, contact elliot',
+        human_readable => 'Race Name',
+    },
+
+    minutes => {
+        regex          => '\d{0,2}',
+        fix_data       => 'Please enter 2 numbers.',
+        human_readable => "Minutes",
+    },
+
+    seconds => {
+        regex          => '\d{0,2}',
+        fix_data       => 'Please enter 2 numbers.',
+        human_readable => "Seconds",
+    },
+
+);
+
+
+
+our %functions = (
+    range => sub {
+        my ( $low_end, $high_end, $data ) = @_;
+
+        if ( ( $data > $low_end ) and ( $data < $high_end ) ) {
+            return "True";
+        }
+    },
+
+    address_check => sub {
+        my ($data) = @_;
+        my ( $street_name_and_number, $city, $state, $zip ) =
+          split( ',', $data );
+        my $error;
+        unless (
+            $street_name_and_number =~ m/([0-9]+) ([a-zA-Z]+) ([a-zA-Z\.]+)/ )
+        {
+            return;
+        }
+        unless ( $city =~ m/[a-zA-Z]+/ ) {
+            return;
+        }
+        unless ( $state =~ m/[a-zA-Z]+/ ) {
+            return;
+        }
+        unless ( $zip =~ m/([0-9]{5,5})/ ) {
+            return;
+        }
+
+        return "true";
+
+    },
+    my_date => sub {
+        my ($data) = @_;
+        my ( $year, $month, $day ) = $data =~ m/^(\d+)-(\d+)-(\d+)$/;
+        if ( $year > 2050 or $year < 2000 ) {
+        return;
+	}
+        if ( $month > 12 or $month < 1 ) {
+        return;
+	}
+        if ( $day > 31 or $day < 1 ) {
+        return;
+	}
+	return "true";
+    },
+
+);
+
 
 foreach my $keys ( keys %hash ) {
 
     foreach my $values ( $hash{$keys} ) {
 
-        our (%single_value, %multi_values);
-	our @array = split( / /, $values );
-	if (scalar(@array) <= 1 or $keys =~ m'first_name|alias') {$single_value{$keys}=$values;}
-	else{ $multi_values{$keys}=$values;}
-
-
-=derp
-        foreach (@array) {
-            print "key: $keys, value: '$_'.<br>";
+        our ( %single_value, %multi_values );
+        our @array = split( /\|/, $values );
+        if ( scalar(@array) <= 1 ) {
+            $single_value{$keys} = $values;
         }
-=cut
+        else { $multi_values{$keys} = $values; }
 
     }
 
-}    #debugging
-
-
-#print Dumper(%single_value);
-#print Dumper(%multi_values);
+}
 
 our @full_array;
-foreach $key (keys %multi_values){
-my @values = split( / /, $multi_values{$key} );
+if (%multi_values) {
+    foreach $key ( keys %multi_values ) {
+        my @values = split( /\|/, $multi_values{$key} );
+        foreach $value (@values) {
 
-foreach $value (@values)
+            my %hash;
+            foreach $inner_key ( keys %single_value ) {
 
-{ 
-my @small_array;
-foreach $inner_key (keys %single_value){
+                foreach ( $single_value{$inner_key} ) {
 
-foreach $inner_key_value ($single_value{$inner_key}){
-my %hash = ($inner_key => $single_value{$inner_key});
-push @small_array, \%hash;
+                    $hash{$inner_key} = $single_value{$inner_key};
+                }
+                $value =~ s/\s//;
+                $hash{$key} = $value;
+            }
+            push @full_array, \%hash;
+        }
+    }
 }
-}
-my %new_hash = ($key => $value);
-push @small_array, \%new_hash;
-push @full_array, \@small_array;
-#print Dumper(@small_array);
+else { push @full_array, \%single_value; }
+our $error;
+our %errors;
+foreach $hash_ref (@full_array) {
 
+    my (@keys) = ( keys $hash_ref );
+
+    my $joined_keys = join( ',', @keys );
+
+      our @valuez;
+    my @place_holder;
+    foreach $key (@keys) {
+        ${$hash_ref}{$key} =~ s/\0//g;
+        my $value = ${$hash_ref}{$key};
+        validate_form2( $key, $value );
+
+        if ( !$error{$key} ) { $valid{$key} = $value; }
+
+        if ( !( $key eq 'date' ) ) {
+            if ( $value =~ m/(\D)/ ) { $value = "\"$value\""; }
+        }
+
+        if ( !${$hash_ref}{$key} ) { $error = 1; }
+        push @valuez,       $value;
+        push @place_holder, '?';
+    }
+
+    my $joined_values = join( ',', @valuez );
+
+    my $place_holder_j = join( ',', @place_holder );
+
+    our $prepared;
+    if (@valuez) {
+        if ( !$error and !%errors ) {
+            unless ( array_minus( @keys, @results_columns ) ) {
+                if ( !$prepared ) {
+                    my $sqlz =
+"INSERT INTO results ($joined_keys) VALUES ($place_holder_j)";
+                    our $sth = $dbh->prepare($sqlz);
+
+                    $prepared = 1;
+                }
+                $sth->execute(@valuez)
+                  or die "Can't prepare statement: $DBI::errstr";
+                undef @valuez;
+
+            }
+            unless ( array_minus( @keys, @runner_columns ) ) {
+                my $sqlz =
+                  "INSERT INTO runners ($joined_keys) VALUES ($joined_values)";
+
+                send_sql($sqlz);
+            }
+
+        }
+    }
 }
 
-#print $multi_values{$key};
-
-}
-#print Dumper(@full_array);
+our %valid;
+our @keys;
+our @values;
 
 print '
 
@@ -75,7 +277,7 @@ print '
 
 .half_container{
 float:left;
-width: 47%;
+width: 40%;
 border-top: 1px solid rgba(0, 0, 0, 0.1);
 padding: 20px;
 }
@@ -84,6 +286,7 @@ padding: 20px;
 width: 100%;
 border-top: 1px solid rgba(0, 0, 0, 0.1);
 padding: 20px;
+clear:both;
 }
 
 .checkboxes{
@@ -166,7 +369,7 @@ sub column_names {
 sub hashify_database_table {
 
     our ($table) = @_;
-    our @array_of_database;
+    my @array_of_database;
     my $sql = "select * from $table";
     our $sth = $dbh->prepare($sql);
     $sth->execute;
@@ -180,7 +383,7 @@ sub hashify_database_table {
         my %hash;
         foreach our $field (@fields) {
 
-            $hash{$table}{$field} = $$hash_ref{$field};
+            $hash{$field} = $$hash_ref{$field};
         }
 
         push @array_of_database, \%hash;
@@ -194,7 +397,7 @@ sub select_runners {
     #wtih a drop down list of all the locations
 
     print "<div class='full_container'>";
-    print "<form>";
+    print "<form method='post'>";
 
     print "<h1>Enter Past or Upcoming Races</h1>";
     print "<select name='races'>";
@@ -202,7 +405,7 @@ sub select_runners {
     foreach our $hash_ref (@races) {
         if ( ${$hash_ref}{races}{alias} ) {
             print
-"<option value='${$hash_ref}{races}{races_pk_id} '>${$hash_ref}{races}{alias}</option>";
+"<option value='${$hash_ref}{races}{races_pk_id}'>${$hash_ref}{races}{alias}</option>";
 
         }
     }
@@ -215,7 +418,7 @@ sub select_runners {
 "${$hash_ref}{runners}{first_name} ${$hash_ref}{runners}{last_name}";
             if ($full_name) {
                 print
-"<div class='checkboxes'><input type='checkbox' name='runner' value='${$hash_ref}{runners}{pk_id} '> $full_name </div>";
+"<div class='checkboxes'><input type='checkbox' name='runner' value='${$hash_ref}{runners}{pk_id}|'> $full_name </div>";
             }
 
         }
@@ -256,103 +459,6 @@ sub enter_results {
     #foreach database result where there is a null value for race time
 
 }
-
-our %forms = (
-
-    alias => {
-        human_readable => 'Name of Race',
-        example        => 'Cummings High School, Wendy\'s invitational, etc',
-        regex          => '[a-zA-Z ]',
-        fix_data       => 'use only letters and spaces.',
-
-    },
-
-    location => {
-        human_readable => 'Address of Race',
-        example        => '123 Fake Street, City/Town, State, Zip',
-        function       => 'address_check()',
-        fix_data => 'use this form exactly: 123 Fake Street, City, State, Zip',
-
-    },
-
-    date => {
-        human_readable => 'Date',
-        example        => '1995-12-25 is the christmas of 95',
-        regex          => '^\d{4,4}-\d{2,2}-\d{2,2}$',
-        fix_data       => 'use this form: yyyy-mm-dd .'
-    },
-    first_name => {
-        human_readable => "First Name",
-        example        => "John",
-        regex          => '^[a-zA-Z\']{1,15}$',
-        fix_data       => 'use letters from the english alphabet only.'
-    },
-
-    last_name => {
-        human_readable => "Last Name",
-        example        => "Smith",
-        regex          => '^[a-zA-Z\'-]{1,15}$',
-        fix_data       => 'use letters from the english alphabet only.'
-    },
-
-    gender => {
-        regex          => '^[mf]{1,1}$',
-        fix_data       => 'enter m or f.',
-        human_readable => "Gender",
-    },
-
-    years_running => {
-        regex          => '^\d{1,2}$',
-        function       => 'range(0,20)',
-        fix_data       => 'enter 0 through 19.',
-        human_readable => "Years Running",
-    },
-
-    year_of_birth => {
-        regex          => '^[0-9]{4,4}$',
-        function       => 'range(1900,2099)',
-        fix_data       => 'enter 1900 through 2099.',
-        human_readable => "Year of Birth"
-    },
-
-    currently_on_team => {
-        regex          => '^[yn]{1,1}$',
-        fix_data       => 'enter either y or n.',
-        human_readable => "Currently on Team?",
-    },
-
-    phone_number => {
-        regex          => '(\(?[0-9]{3,3}\)?)?\s*[0-9]{3,3}\s*-?[0-9]{4,4}',
-        fix_data       => 'Please enter a valid phone number.',
-        human_readable => 'Phone number',
-    },
-
-    runner => {
-        regex          => '\d',
-        fix_data       => 'Something is broken, contact elliot',
-        human_readable => 'Runner Name',
-    },
-
-    races => {
-        regex          => '\d',
-        fix_data       => 'Something is broken, contact elliot',
-        human_readable => 'Race Name',
-    },
-
-    minutes => {
-        regex          => '\d{0,2}',
-        fix_data       => 'Please enter 2 numbers.',
-        human_readable => "Minutes",
-    },
-
-    seconds => {
-        regex          => '\d{0,2}',
-        fix_data       => 'Please enter 2 numbers.',
-        human_readable => "Seconds",
-    },
-
-);
-
 our $form_title = "Enter Runners...";
 our @insert_new_runners =
   ( 'first_name', 'last_name', 'gender', 'currently_on_team', );
@@ -405,74 +511,9 @@ our @array_of_table_columns;
 for my $outside_ref (@$column_info_ref) {
     push( @array_of_table_columns, ${$outside_ref}[3] );
 }
-
-our %functions = (
-    range => sub {
-        my ( $low_end, $high_end, $data ) = @_;
-
-        if ( ( $data > $low_end ) and ( $data < $high_end ) ) {
-            return "True";
-        }
-    },
-
-    address_check => sub {
-        my ($data) = @_;
-        my ( $street_name_and_number, $city, $state, $zip ) =
-          split( ',', $data );
-        my $error;
-        unless (
-            $street_name_and_number =~ m/([0-9]+) ([a-zA-Z]+) ([a-zA-Z\.]+)/ )
-        {
-            return;
-        }
-        unless ( $city =~ m/[a-zA-Z]+/ ) {
-            return;
-        }
-        unless ( $state =~ m/[a-zA-Z]+/ ) {
-            return;
-        }
-        unless ( $zip =~ m/([0-9]{5,5})/ ) {
-            return;
-        }
-
-        return "true";
-
-    },
-);
-our @keys;
-our @values;
-our %valid;
-
-#@names =  $q->param;
-#foreach (@names){ print "$_ <br>";}
-
-
-
-
-
-foreach $key ( keys %hash ) {
-
-    #print "$key points to $hash{$key}";
-    our $value = $q->param($key);
-    validate_form2( $key, $value );
-    unless ( $errors{$key} ) {
-        $valid{$key} = $value;
-    }
-    if ( $value =~ m/(\D)/ ) { $value = "\"$value\""; }
-    push @keys,   $key;
-    push @values, $value;
-}
-
-$key_scalar   = join( ',', @keys );
-$value_scalar = join( ',', @values );
-
-our %errors;
-
 sub validate_form2 {
-
     our ( $form_name, $form_data ) = @_;
-    foreach $form ( keys %forms ) {
-
+    foreach ( keys %forms ) {
         if ( $forms{$form_name} ) {
             if ( $forms{$form_name}->{regex} ) {
                 unless ( $form_data =~ m/$forms{$form_name}{regex}/ ) {
@@ -488,7 +529,6 @@ sub validate_form2 {
                   $forms{$form_name}->{function} =~ m/^(.+)\((.*)\)$/;
                 my @array = split( /,/, $args );
                 push( @array, $form_data );
-
                 unless ( $functions{$function}->(@array) ) {
 
                     unless ( $errors{$form_name} ) {
@@ -504,8 +544,8 @@ sub validate_form2 {
 
 }
 
-create_form( "Enter New Runners", 'runners', @insert_new_runners );
-create_form( "Enter New Race Locations", 'races', ( 'alias', 'location' ) );
+#create_form( "Enter New Runners", 'runners', @insert_new_runners );
+#create_form( "Enter New Race Locations", 'races', ( 'alias', 'location' ) );
 
 #create_form( "Phone number", 'blah', 'phone_number');
 
@@ -523,29 +563,6 @@ sub send_sql {
 
 our %database_hash;
 
-our @runner_columns  = column_names("runners");
-our @race_columns    = column_names( "races", );
-our @results_columns = column_names('results');
-
-if ( !%errors and $key_scalar ) {
-
-    unless ( array_minus( @keys, @runner_columns ) ) {
-        my $sqlz = "INSERT INTO runners ($key_scalar) VALUES ($value_scalar)";
-        send_sql($sqlz);
-    }
-
-    unless ( array_minus( @keys, @race_columns ) ) {
-        my $sqlz = "INSERT INTO races ($key_scalar) VALUES ($value_scalar)";
-        send_sql($sqlz);
-    }
-
-    unless ( array_minus( @keys, @results_columns ) ) {
-        my $sqlz = "INSERT INTO results ($key_scalar) VALUES ($value_scalar)";
-        send_sql($sqlz);
-    }
-
-}
-
 sub human_readable_label {
     @data_label = @_;
     my @human_readable;
@@ -560,34 +577,29 @@ sub human_readable_label {
 
 }
 
-#print Dumper(\%database_hash);
-print_table( 'runners', @runner_columns );
-print_table( 'races',   @race_columns );
-
 our @results = hashify_database_table('results');
 
 foreach our $hash_ref (@results) {
-    $get_this_pk_id = ${$hash_ref}{results}{runner};
+    $get_this_pk_id = ${$hash_ref}{runner};
     if ($get_this_pk_id) {
         our $handle = send_sql(
 "select first_name, last_name from runners where pk_id='$get_this_pk_id'"
         );
         our ( $first_name, $last_name ) = $handle->fetchrow_array();
-        ${$hash_ref}{results}{runner} = "$first_name $last_name";
+        ${$hash_ref}{runner} = "$first_name $last_name";
     }
 }
 
 foreach our $hash_ref (@results) {
-    $get_this_pk_id = ${$hash_ref}{results}{races};
+    $get_this_pk_id = ${$hash_ref}{races};
     if ($get_this_pk_id) {
         our $handle = send_sql(
             "select alias from races where races_pk_id='$get_this_pk_id'");
         our ($alias) = $handle->fetchrow_array();
-        ${$hash_ref}{results}{races} = "$alias";
+        ${$hash_ref}{races} = "$alias";
     }
 }
 
-print_table2( 'results', @results );
 
 sub print_table2 {
     my ($db_table) = shift;
@@ -604,7 +616,7 @@ sub print_table2 {
     foreach our $hash_ref (@db) {
         my @temp_array;
         foreach our $column (@fields) {
-            push @temp_array, ${$hash_ref}{$db_table}{$column};
+            push @temp_array, ${$hash_ref}{$column};
         }
         if (@temp_array) {
             my $tr = $table->push('tr');
@@ -618,9 +630,13 @@ sub print_table2 {
 
 our @runners = hashify_database_table('runners');
 our @races   = hashify_database_table('races');
+#our @results = hashify_database_table('results');
+#select_runners();
 
-select_runners();
+#print_table( 'runners', @runner_columns );
+#print_table( 'races',   @race_columns );
 
+#print_table2( 'results', @results );
 sub print_table {
 
     my ($db_table) = shift;
@@ -644,6 +660,14 @@ sub print_table {
 
     print $table->text();
 }
+#loop through results array
+
+$enter_data = send_sql("select * from results where minutes IS NULL");
+    our $rows = $enter_data->fetchall_hashref('pk_id');
+print Dumper($rows);
+
+
+
 print $cgi->end_html;
 
 #todo: when entering past or upcoming races enter ALL of the values from the keys (not just the first)
