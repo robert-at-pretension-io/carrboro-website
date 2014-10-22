@@ -120,8 +120,6 @@ our %forms = (
 
 );
 
-
-
 our %functions = (
     range => sub {
         my ( $low_end, $high_end, $data ) = @_;
@@ -158,19 +156,18 @@ our %functions = (
         my ($data) = @_;
         my ( $year, $month, $day ) = $data =~ m/^(\d+)-(\d+)-(\d+)$/;
         if ( $year > 2050 or $year < 2000 ) {
-        return;
-	}
+            return;
+        }
         if ( $month > 12 or $month < 1 ) {
-        return;
-	}
+            return;
+        }
         if ( $day > 31 or $day < 1 ) {
-        return;
-	}
-	return "true";
+            return;
+        }
+        return "true";
     },
 
 );
-
 
 foreach my $keys ( keys %hash ) {
 
@@ -216,7 +213,7 @@ foreach $hash_ref (@full_array) {
 
     my $joined_keys = join( ',', @keys );
 
-      our @valuez;
+    our @valuez;
     my @place_holder;
     foreach $key (@keys) {
         ${$hash_ref}{$key} =~ s/\0//g;
@@ -511,6 +508,7 @@ our @array_of_table_columns;
 for my $outside_ref (@$column_info_ref) {
     push( @array_of_table_columns, ${$outside_ref}[3] );
 }
+
 sub validate_form2 {
     our ( $form_name, $form_data ) = @_;
     foreach ( keys %forms ) {
@@ -600,6 +598,29 @@ foreach our $hash_ref (@results) {
     }
 }
 
+sub replace_with2 {
+    my (
+        $array_ref_to_table_with_numeric_values, $column_to_be_replaced,
+        $readable_table_name,                    $readable_identifying_column,
+        $array_ref_to_readable_columns
+    ) = @_;
+    foreach my $hash_ref ( @{$array_ref_to_table_with_numeric_values} ) {
+        my $replace_me = ${$hash_ref}{$column_to_be_replaced};
+        my $select     = join( ',', @{$array_ref_to_readable_columns} );
+	my $handle     = send_sql(
+"select $select from $readable_table_name where $readable_identifying_column='$replace_me'"
+        );
+        my (@values) = $handle->fetchrow_array();
+        ${$hash_ref}{$column_to_be_replaced} = "@values";
+    }
+}
+
+
+our @test_hash = hashify_database_table('results');
+$replace_columns = [ 'first_name', 'last_name' ];
+replace_with2( \@test_hash, 'runner', 'runners', 'pk_id', $replace_columns );
+$replace_columns = ['alias'];
+replace_with2(\@test_hash, 'races', 'races', 'races_pk_id', $replace_columns);
 
 sub print_table2 {
     my ($db_table) = shift;
@@ -630,6 +651,7 @@ sub print_table2 {
 
 our @runners = hashify_database_table('runners');
 our @races   = hashify_database_table('races');
+
 #our @results = hashify_database_table('results');
 #select_runners();
 
@@ -660,13 +682,13 @@ sub print_table {
 
     print $table->text();
 }
+
 #loop through results array
 
 $enter_data = send_sql("select * from results where minutes IS NULL");
-    our $rows = $enter_data->fetchall_hashref('pk_id');
-print Dumper($rows);
+our $rows = $enter_data->fetchall_hashref('pk_id');
 
-
+#print Dumper($rows);
 
 print $cgi->end_html;
 
