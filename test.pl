@@ -16,6 +16,37 @@ our %hash = $q->Vars;
 my $cgi = new CGI;
 print $cgi->header;
 
+use POSIX qw(strftime);
+
+#uses YYYY-MM-DD format
+our $today = strftime "%Y-%m-%d", localtime;
+
+=usage
+$happened = "1999-12-25";
+$nothappened = "2015-12-25";
+if (date_check($today,$happened) eq 1) {print "<br>this is expected<br>"} else {print "<br>WHAT?<br>";}
+if (date_check($today,$nothappened) eq 0) {print "<br>this is expected<br>"} else {print "<br>WHAT?<br>";}
+if (date_check($today,$today) eq 2){print "<br>this is expected<br>"} else {print "<br>WHAT?<br>";}
+=cut
+
+
+#takes ($today and $date), returns 0 if the day is yet to come, 1 if that day has passed and 2 if that day is today;
+sub date_check{
+my ($today, $date) = @_;
+my ($ty,$tm,$td) = $today =~ m/(\d+)-(\d+)-(\d+)/;
+my ($oy,$om,$od) = $date =~ m/(\d+)-(\d+)-(\d+)/;
+
+if ($today eq $date) {return 2;}
+
+if ($oy <= $ty  ){return 1;
+if ($om <= $tm  ){return 1;
+if ($od <= $td  ){return 1;
+}}}
+
+else{return 0;}
+}
+
+
 $Data::Dumper::Useqq = 1;
 
 my $dbh = DBI->connect( 'dbi:mysql:team', 'team', 'teampasswd' );
@@ -399,10 +430,10 @@ sub select_runners {
     print "<h1>Enter Past or Upcoming Races</h1>";
     print "<select name='races'>";
 
-    foreach our $hash_ref (@races) {
-        if ( ${$hash_ref}{races}{alias} ) {
+    foreach my $hash_ref1 (@races) {
+        if ( ${$hash_ref1}{alias} ) {
             print
-"<option value='${$hash_ref}{races}{races_pk_id}'>${$hash_ref}{races}{alias}</option>";
+"<option value='${$hash_ref1}{races_pk_id}'>${$hash_ref1}{alias}</option>";
 
         }
     }
@@ -412,10 +443,10 @@ sub select_runners {
     foreach our $hash_ref (@runners) {
         if ( ${$hash_ref}{runners} ) {
             our $full_name =
-"${$hash_ref}{runners}{first_name} ${$hash_ref}{runners}{last_name}";
+"${$hash_ref}{first_name} ${$hash_ref}{last_name}";
             if ($full_name) {
                 print
-"<div class='checkboxes'><input type='checkbox' name='runner' value='${$hash_ref}{runners}{pk_id}|'> $full_name </div>";
+"<div class='checkboxes'><input type='checkbox' name='runner' value='${$hash_ref}{pk_id}|'> $full_name </div>";
             }
 
         }
@@ -542,8 +573,8 @@ sub validate_form2 {
 
 }
 
-#create_form( "Enter New Runners", 'runners', @insert_new_runners );
-#create_form( "Enter New Race Locations", 'races', ( 'alias', 'location' ) );
+create_form( "Enter New Runners", 'runners', @insert_new_runners );
+create_form( "Enter New Race Locations", 'races', ( 'alias', 'location' ) );
 
 #create_form( "Phone number", 'blah', 'phone_number');
 
@@ -622,6 +653,21 @@ replace_with2( \@test_hash, 'runner', 'runners', 'pk_id', $replace_columns );
 $replace_columns = ['alias'];
 replace_with2(\@test_hash, 'races', 'races', 'races_pk_id', $replace_columns);
 
+#print Dumper(@test_hash);
+
+=next_form
+foreach $result (@test_hash){
+my $seconds = ${$result}{seconds};
+my $minutes = ${$result}{minutes};
+my $date = ${$result}{date};
+my $runner = ${$result}{runner};
+my $races = ${$result}{races};
+
+if (!$seconds or !$minutes){
+print "At $races, on $date, $runner does not have their time entered<br>";
+}
+}
+=cut
 sub print_table2 {
     my ($db_table) = shift;
     my (@db)       = @_;
@@ -652,13 +698,13 @@ sub print_table2 {
 our @runners = hashify_database_table('runners');
 our @races   = hashify_database_table('races');
 
-#our @results = hashify_database_table('results');
-#select_runners();
+print_table2( 'results', @results );
+our @results = hashify_database_table('results');
+select_runners();
 
-#print_table( 'runners', @runner_columns );
-#print_table( 'races',   @race_columns );
+print_table( 'runners', @runner_columns );
+print_table( 'races',   @race_columns );
 
-#print_table2( 'results', @results );
 sub print_table {
 
     my ($db_table) = shift;
@@ -692,7 +738,4 @@ our $rows = $enter_data->fetchall_hashref('pk_id');
 
 print $cgi->end_html;
 
-#todo: when entering past or upcoming races enter ALL of the values from the keys (not just the first)
-#add better validation for the date entry
-#enter race results in the results database when there are no entries for minutes or seconds
-
+#todo: At the top of the file, hashify all the databases then make unique human readable forms
