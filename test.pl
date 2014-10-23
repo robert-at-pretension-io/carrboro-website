@@ -6,11 +6,11 @@ use DBD::mysql;
 use CGI::Carp qw(fatalsToBrowser warningsToBrowser);
 warningsToBrowser(1);
 use Data::Dumper;
-
 use HTML::Make;
 use CGI::Simple;
 use Array::Utils qw(:all);
 use Scalar::Util qw(looks_like_number);
+$Data::Dumper::Useqq = 1;
 $q = CGI::Simple->new;
 our %hash = $q->Vars;
 my $cgi = new CGI;
@@ -20,6 +20,11 @@ use POSIX qw(strftime);
 
 #uses YYYY-MM-DD format
 our $today = strftime "%Y-%m-%d", localtime;
+
+
+
+
+
 
 =usage
 $happened = "1999-12-25";
@@ -47,12 +52,18 @@ else{return 0;}
 }
 
 
-$Data::Dumper::Useqq = 1;
 
 my $dbh = DBI->connect( 'dbi:mysql:team', 'team', 'teampasswd' );
 our @runner_columns  = column_names("runners");
 our @race_columns    = column_names( "races", );
 our @results_columns = column_names('results');
+our @races = hashify_database_table('races');
+our @results = hashify_database_table('results');
+our @runners = hashify_database_table('runners');
+
+
+
+
 
 our %forms = (
 
@@ -83,14 +94,14 @@ our %forms = (
         human_readable => "First Name",
         example        => "John",
         regex          => '^[a-zA-Z\']{1,15}$',
-        fix_data       => 'use letters from the english alphabet only.'
-    },
+        fix_data       => 'use letters from the english alphabet only.',
+},
 
     last_name => {
         human_readable => "Last Name",
         example        => "Smith",
         regex          => '^[a-zA-Z\'-]{1,15}$',
-        fix_data       => 'use letters from the english alphabet only.'
+        fix_data       => 'use letters from the english alphabet only.',
     },
 
     gender => {
@@ -129,13 +140,19 @@ our %forms = (
         regex          => '\d',
         fix_data       => 'Something is broken, contact elliot',
         human_readable => 'Runner Name',
-    },
+	table => 'runners',
+    	references_columns => 'first_name,last_name',
+	row_identifier => 'pk_id',
+	},
 
     races => {
         regex          => '\d',
         fix_data       => 'Something is broken, contact elliot',
         human_readable => 'Race Name',
-    },
+    	table => 'races',
+	references_columns => 'alias',
+	row_identifier => 'races_pk_id',
+	},
 
     minutes => {
         regex          => '\d{0,2}',
@@ -294,8 +311,6 @@ foreach $hash_ref (@full_array) {
 }
 
 our %valid;
-our @keys;
-our @values;
 
 print '
 
@@ -430,18 +445,18 @@ sub select_runners {
     print "<h1>Enter Past or Upcoming Races</h1>";
     print "<select name='races'>";
 
+
+
     foreach my $hash_ref1 (@races) {
-        if ( ${$hash_ref1}{alias} ) {
             print
 "<option value='${$hash_ref1}{races_pk_id}'>${$hash_ref1}{alias}</option>";
 
-        }
     }
     print "</select><br>";
 
     #select the runners
+
     foreach our $hash_ref (@runners) {
-        if ( ${$hash_ref}{runners} ) {
             our $full_name =
 "${$hash_ref}{first_name} ${$hash_ref}{last_name}";
             if ($full_name) {
@@ -449,7 +464,6 @@ sub select_runners {
 "<div class='checkboxes'><input type='checkbox' name='runner' value='${$hash_ref}{pk_id}|'> $full_name </div>";
             }
 
-        }
     }
     print "<div class=\"entry\">";
     our $field = 'date';
@@ -482,14 +496,6 @@ sub select_runners {
 
 }
 
-sub enter_results {
-
-    #foreach database result where there is a null value for race time
-
-}
-our $form_title = "Enter Runners...";
-our @insert_new_runners =
-  ( 'first_name', 'last_name', 'gender', 'currently_on_team', );
 
 sub create_form {
     my $form_title             = shift;
@@ -573,15 +579,9 @@ sub validate_form2 {
 
 }
 
-create_form( "Enter New Runners", 'runners', @insert_new_runners );
+create_form( "Enter New Runners", 'runners', ('first_name', 'last_name', 'gender', 'currently_on_team', ));
 create_form( "Enter New Race Locations", 'races', ( 'alias', 'location' ) );
 
-#create_form( "Phone number", 'blah', 'phone_number');
-
-################################### TO DO: MAKE SURE THAT THE $KEYS ARE A SUBSET OF THE COLUMS OF A THE TABLE.. IF NOT, THEN SKIP THEM
-#my $sqlz = "INSERT INTO runners ($key_scalar) VALUES ($value_scalar)";
-
-#print $sqlz;
 
 sub send_sql {
     my $sql     = shift;
@@ -590,7 +590,6 @@ sub send_sql {
     return $do_work;
 }
 
-our %database_hash;
 
 sub human_readable_label {
     @data_label = @_;
@@ -606,7 +605,6 @@ sub human_readable_label {
 
 }
 
-our @results = hashify_database_table('results');
 
 foreach our $hash_ref (@results) {
     $get_this_pk_id = ${$hash_ref}{runner};
@@ -647,11 +645,6 @@ sub replace_with2 {
 }
 
 
-our @test_hash = hashify_database_table('results');
-$replace_columns = [ 'first_name', 'last_name' ];
-replace_with2( \@test_hash, 'runner', 'runners', 'pk_id', $replace_columns );
-$replace_columns = ['alias'];
-replace_with2(\@test_hash, 'races', 'races', 'races_pk_id', $replace_columns);
 
 #print Dumper(@test_hash);
 
@@ -670,17 +663,31 @@ print "At $races, on $date, $runner does not have their time entered<br>";
 =cut
 sub print_table2 {
     my ($db_table) = shift;
-    my (@db)       = @_;
 
+
+	my @db_table = hashify_database_table($db_table);
     my $handle = send_sql("select * from $db_table");
 
     our @fields                = @{ $handle->{NAME} };
-    our @human_readable_fields = human_readable_label(@fields);
+
+foreach $column_name (@fields){
+if ($forms{$column_name}{table}){
+#print "<br> '$column_name' <br>";
+my $readable_table = $forms{$column_name}{table};
+my $row_identifier = $forms{$column_name}{row_identifier};
+my @readable_columns = split (',',$forms{$column_name}{references_columns});
+replace_with2(\@db_table,$column_name,$readable_table,$row_identifier,\@readable_columns);
+
+
+}
+}
+    
+our @human_readable_fields = human_readable_label(@fields);
     my $table = HTML::Make->new('table');
     my $tr    = $table->push('tr');
     $tr->multiply( 'th', \@human_readable_fields );
 
-    foreach our $hash_ref (@db) {
+    foreach our $hash_ref (@db_table) {
         my @temp_array;
         foreach our $column (@fields) {
             push @temp_array, ${$hash_ref}{$column};
@@ -695,39 +702,12 @@ sub print_table2 {
     print $table->text();
 }
 
-our @runners = hashify_database_table('runners');
-our @races   = hashify_database_table('races');
-
-print_table2( 'results', @results );
-our @results = hashify_database_table('results');
 select_runners();
 
-print_table( 'runners', @runner_columns );
-print_table( 'races',   @race_columns );
+print_table2( 'results' );
+print_table2( 'runners');
+print_table2( 'races' );
 
-sub print_table {
-
-    my ($db_table) = shift;
-
-    my @fields = @_;
-    my $sql    = "select * from $db_table";
-    our $sth = $dbh->prepare($sql);
-    $sth->execute;
-
-    @fields = human_readable_label(@fields);    #use this after done debugging
-
-    my $table = HTML::Make->new('table');
-    my $tr    = $table->push('tr');
-    $tr->multiply( 'th', \@fields );
-    my $rows = $sth->fetchall_arrayref;
-
-    foreach my $row ( @{$rows} ) {
-        my $tr = $table->push('tr');
-        $tr->multiply( 'td', \@{$row} );
-    }
-
-    print $table->text();
-}
 
 #loop through results array
 
