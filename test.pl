@@ -11,7 +11,7 @@ use CGI::Simple;
 use Array::Utils qw(:all);
 use Scalar::Util qw(looks_like_number);
 $Data::Dumper::Useqq = 1;
-$q = CGI::Simple->new;
+$q                   = CGI::Simple->new;
 our %hash = $q->Vars;
 my $cgi = new CGI;
 print $cgi->header;
@@ -21,10 +21,16 @@ use POSIX qw(strftime);
 #uses YYYY-MM-DD format
 our $today = strftime "%Y-%m-%d", localtime;
 
+#print Dumper(%hash);
 
+foreach my $key ( keys %hash ) {
+    my @value = split( /\0/, $hash{$key} );
+}
 
-
-
+#print "<br> \$key = '$key'";
+#foreach (@value){
+#print "\$_ = '$_'<br>";
+#}
 
 =usage
 $happened = "1999-12-25";
@@ -34,37 +40,72 @@ if (date_check($today,$nothappened) eq 0) {print "<br>this is expected<br>"} els
 if (date_check($today,$today) eq 2){print "<br>this is expected<br>"} else {print "<br>WHAT?<br>";}
 =cut
 
-
 #takes ($today and $date), returns 0 if the day is yet to come, 1 if that day has passed and 2 if that day is today;
-sub date_check{
-my ($today, $date) = @_;
-my ($ty,$tm,$td) = $today =~ m/(\d+)-(\d+)-(\d+)/;
-my ($oy,$om,$od) = $date =~ m/(\d+)-(\d+)-(\d+)/;
+sub date_check {
+    my ( $today, $date ) = @_;
+    my ( $ty, $tm, $td ) = $today =~ m/(\d+)-(\d+)-(\d+)/;
+    my ( $oy, $om, $od ) = $date  =~ m/(\d+)-(\d+)-(\d+)/;
 
-if ($today eq $date) {return 2;}
+    if ( $today eq $date ) { return 2; }
 
-if ($oy <= $ty  ){return 1;
-if ($om <= $tm  ){return 1;
-if ($od <= $td  ){return 1;
-}}}
+    if ( $oy <= $ty ) {
+        return 1;
+        if ( $om <= $tm ) {
+            return 1;
+            if ( $od <= $td ) {
+                return 1;
+            }
+        }
+    }
 
-else{return 0;}
+    else { return 0; }
 }
 
-
-
 my $dbh = DBI->connect( 'dbi:mysql:team', 'team', 'teampasswd' );
-our @runner_columns  = column_names("runners");
-our @race_columns    = column_names( "races", );
-our @results_columns = column_names('results');
-our @races = hashify_database_table('races');
-our @results = hashify_database_table('results');
-our @runners = hashify_database_table('runners');
 
+my $sql  = qq[ SHOW TABLES ];
+my $rows = $dbh->selectall_arrayref($sql);
 
+our @tables;
+foreach ( @{$rows} ) {
+    my $table = join( '', @{$_} );
+    push( @tables, $table );
+}
 
+our %table_columns;
+foreach my $table (@tables) {
+    my @columns = column_names($table);
+    my $columns = join( ',', @columns );
+    $table_columns{$table} = $columns;
+}
 
+#print Dumper (\%table_columns);
 
+our @hopefully_one_table = determine_table('pk_id');
+
+#print "@hopefully_one_table";
+
+sub determine_table {
+    my @test_these_columns = @_;
+    my @true_tables
+      ; #tables containing the subset of columns -- if this is more than one table then there should be an error -- because the function will not know which table to interact with
+
+    #make sure the the columns aren't the empty set
+    if (@test_these_columns) {
+        foreach my $table ( keys %table_columns ) {
+            my @full_columns = split( /,/, $table_columns{$table} );
+
+            #print "<br>\@full_columns of $table are @full_columns.<br>";
+
+            unless ( array_minus( @test_these_columns, @full_columns ) )
+            { #print "@test_these_columns is a subset of @full_columns<br><br>";
+                push @true_tables, $table;
+            }
+        }
+
+    }
+    return @true_tables;
+}
 our %forms = (
 
     alias => {
@@ -95,7 +136,7 @@ our %forms = (
         example        => "John",
         regex          => '^[a-zA-Z\']{1,15}$',
         fix_data       => 'use letters from the english alphabet only.',
-},
+    },
 
     last_name => {
         human_readable => "Last Name",
@@ -137,22 +178,22 @@ our %forms = (
     },
 
     runner => {
-        regex          => '\d',
-        fix_data       => 'Something is broken, contact elliot',
-        human_readable => 'Runner Name',
-	table => 'runners',
-    	references_columns => 'first_name,last_name',
-	row_identifier => 'pk_id',
-	},
+        regex              => '\d',
+        fix_data           => 'Something is broken, contact elliot',
+        human_readable     => 'Runner Name',
+        table              => 'runners',
+        references_columns => 'first_name,last_name',
+        row_identifier     => 'pk_id',
+    },
 
     races => {
-        regex          => '\d',
-        fix_data       => 'Something is broken, contact elliot',
-        human_readable => 'Race Name',
-    	table => 'races',
-	references_columns => 'alias',
-	row_identifier => 'races_pk_id',
-	},
+        regex              => '\d',
+        fix_data           => 'Something is broken, contact elliot',
+        human_readable     => 'Race Name',
+        table              => 'races',
+        references_columns => 'alias',
+        row_identifier     => 'races_pk_id',
+    },
 
     minutes => {
         regex          => '\d{0,2}',
@@ -162,9 +203,11 @@ our %forms = (
 
     seconds => {
         regex          => '\d{0,2}',
-        fix_data       => 'Please enter 2 numbers.',
-        human_readable => "Seconds",
-    },
+        fix_data       => 'Please enter 0-60.',
+        function => 'range(0,60)',
+	human_readable => "Seconds",
+    	
+	},
 
 );
 
@@ -172,7 +215,7 @@ our %functions = (
     range => sub {
         my ( $low_end, $high_end, $data ) = @_;
 
-        if ( ( $data > $low_end ) and ( $data < $high_end ) ) {
+        if ( ( $data >= $low_end ) and ( $data <= $high_end ) ) {
             return "True";
         }
     },
@@ -217,57 +260,96 @@ our %functions = (
 
 );
 
-foreach my $keys ( keys %hash ) {
-
-    foreach my $values ( $hash{$keys} ) {
-
-        our ( %single_value, %multi_values );
-        our @array = split( /\|/, $values );
-        if ( scalar(@array) <= 1 ) {
-            $single_value{$keys} = $values;
-        }
-        else { $multi_values{$keys} = $values; }
-
-    }
-
-}
-
-our @full_array;
-if (%multi_values) {
-    foreach $key ( keys %multi_values ) {
-        my @values = split( /\|/, $multi_values{$key} );
-        foreach $value (@values) {
-
-            my %hash;
-            foreach $inner_key ( keys %single_value ) {
-
-                foreach ( $single_value{$inner_key} ) {
-
-                    $hash{$inner_key} = $single_value{$inner_key};
-                }
-                $value =~ s/\s//;
-                $hash{$key} = $value;
-            }
-            push @full_array, \%hash;
-        }
-    }
-}
-else { push @full_array, \%single_value; }
-our $error;
+our %insert;
+our @columns;
 our %errors;
-foreach $hash_ref (@full_array) {
+our $edit;
+our $multivalue;
+our %valid;
+our $complete = 1;
 
-    my (@keys) = ( keys $hash_ref );
 
-    my $joined_keys = join( ',', @keys );
 
-    our @valuez;
-    my @place_holder;
-    foreach $key (@keys) {
-        ${$hash_ref}{$key} =~ s/\0//g;
-        my $value = ${$hash_ref}{$key};
-        validate_form2( $key, $value );
 
+my @keys = keys(%hash);
+foreach my $key (@keys) {
+    my ( $column, $id ) = split( /\./, $key );
+    push @columns, $column;
+}
+my @tables = determine_table(@columns);
+
+if ( @tables == 1 ) {
+    our $selected_table = join( '', @tables );
+    #print "@columns are in @tables<br>";
+}
+elsif(!%hash){}
+else { print "The columns:'@columns' exist in multiple tables:'@tables'"; }
+
+if ($selected_table) {
+    foreach my $key ( keys %hash ) {
+        foreach my $values ( $hash{$key} ) {
+            our @split_values = split( /\0/, $values );
+		$array_size = @split_values;
+		if ($array_size == 0){undef $complete;}
+		#print "\$array_size =", $array_size, "<br>";
+
+		if ($array_size >1){ $multivalue = 1;}
+            if (@split_values) {
+		
+
+
+                my ( $column, $id ) = split( /\./, $key );
+		foreach my $value (@split_values){
+		validate_form2($column,$value);
+		}
+                print
+"<b>\$selected_table</b> = $selected_table <b>\$column</b> = $column <b>\$id</b> = $id <b>value</b> = @split_values<br>";
+                my $value = join( ',', @split_values );
+
+ $valid{$column} = $value; 
+                if ($id) {
+                    $insert{$id}{$column} = $value;
+        		$edit = 1;  
+	      }
+                else {
+                    $insert{$column} = $value;
+                }
+
+
+            }
+
+        }
+    }
+}
+
+
+
+
+
+
+
+#print Dumper(\%valid);
+if (%insert){
+print "<br>";
+print Dumper( \%insert );
+}
+#if (%errors) {print Dumper(\%errors)};
+
+if (!%errors and %hash and ($complete or $edit)){ #if there are no errors and an entry was made
+undef %valid;
+print "<br>INSERT DATA INTO DATABASE HERE<br>";
+
+if ($edit){
+print "<br>time to edit the table $selected_table<br>";
+}
+if ($multivalue){
+print "<br>time to enter multiple values: '@split_values' into $selected_table<br>";
+}
+
+}
+
+
+=blah
         if ( !$error{$key} ) { $valid{$key} = $value; }
 
         if ( !( $key eq 'date' ) ) {
@@ -287,30 +369,46 @@ foreach $hash_ref (@full_array) {
     if (@valuez) {
         if ( !$error and !%errors ) {
             unless ( array_minus( @keys, @results_columns ) ) {
+
                 if ( !$prepared ) {
-                    my $sqlz =
+                    @update = ( 'seconds', 'minutes' );
+                    unless ( array_minus( @keys, @update ) ) {
+                        my $sqlz =
 "INSERT INTO results ($joined_keys) VALUES ($place_holder_j)";
-                    our $sth = $dbh->prepare($sqlz);
+                        our $sth = $dbh->prepare($sqlz);
+
+                    }
+
+                    else {
+                        my $sqlz =
+"INSERT INTO results ($joined_keys) VALUES ($place_holder_j)";
+                        our $sth = $dbh->prepare($sqlz);
+                    }
 
                     $prepared = 1;
                 }
+
                 $sth->execute(@valuez)
                   or die "Can't prepare statement: $DBI::errstr";
                 undef @valuez;
-
             }
+
             unless ( array_minus( @keys, @runner_columns ) ) {
                 my $sqlz =
                   "INSERT INTO runners ($joined_keys) VALUES ($joined_values)";
 
                 send_sql($sqlz);
             }
+            unless ( array_minus( @keys, @race_columns ) ) {
+                my $sqlz =
+                  "INSERT INTO races ($joined_keys) VALUES ($joined_values)";
+                send_sql($sqlz);
+            }
 
         }
     }
 }
-
-our %valid;
+=cut
 
 print '
 
@@ -344,7 +442,7 @@ margin-bottom:20px;
 
 .entry{
 margin-bottom:30px;
-width:350px;
+#width:350px;
 clear:both;
 }
 td{
@@ -435,6 +533,8 @@ sub hashify_database_table {
 }
 
 sub select_runners {
+    my @runners = hashify_database_table('runners');
+    my @races   = hashify_database_table('races');
 
     #select a location
     #wtih a drop down list of all the locations
@@ -445,10 +545,8 @@ sub select_runners {
     print "<h1>Enter Past or Upcoming Races</h1>";
     print "<select name='races'>";
 
-
-
     foreach my $hash_ref1 (@races) {
-            print
+        print
 "<option value='${$hash_ref1}{races_pk_id}'>${$hash_ref1}{alias}</option>";
 
     }
@@ -457,12 +555,11 @@ sub select_runners {
     #select the runners
 
     foreach our $hash_ref (@runners) {
-            our $full_name =
-"${$hash_ref}{first_name} ${$hash_ref}{last_name}";
-            if ($full_name) {
-                print
-"<div class='checkboxes'><input type='checkbox' name='runner' value='${$hash_ref}{pk_id}|'> $full_name </div>";
-            }
+        our $full_name = "${$hash_ref}{first_name} ${$hash_ref}{last_name}";
+        if ($full_name) {
+            print
+"<div class='checkboxes'><input type='checkbox' name='runner' value='${$hash_ref}{pk_id}'> $full_name </div>";
+        }
 
     }
     print "<div class=\"entry\">";
@@ -496,15 +593,14 @@ sub select_runners {
 
 }
 
-
 sub create_form {
     my $form_title             = shift;
     my $insert_into_this_table = shift;
     my (@form_fields)          = @_;
-    my ($current_file) = $0 =~ m'[^/]+(?=/$|$)';
+    #my ($current_file) = $0 =~ m'[^/]+(?=/$|$)';
     print "<div class='half_container'>";
     print "<form method='post' action='test.pl' ><h1>$form_title</h1>";
-    unless (%errors) { undef %valid; }
+    #unless (%errors) { undef %valid; }
 
     foreach my $field (@form_fields) {
 
@@ -579,9 +675,9 @@ sub validate_form2 {
 
 }
 
-create_form( "Enter New Runners", 'runners', ('first_name', 'last_name', 'gender', 'currently_on_team', ));
+create_form( "Enter New Runners",
+    'runners', ( 'first_name', 'last_name', 'gender', 'currently_on_team', ) );
 create_form( "Enter New Race Locations", 'races', ( 'alias', 'location' ) );
-
 
 sub send_sql {
     my $sql     = shift;
@@ -589,7 +685,6 @@ sub send_sql {
     $do_work->execute;
     return $do_work;
 }
-
 
 sub human_readable_label {
     @data_label = @_;
@@ -604,7 +699,6 @@ sub human_readable_label {
     return @human_readable;
 
 }
-
 
 foreach our $hash_ref (@results) {
     $get_this_pk_id = ${$hash_ref}{runner};
@@ -636,15 +730,13 @@ sub replace_with2 {
     foreach my $hash_ref ( @{$array_ref_to_table_with_numeric_values} ) {
         my $replace_me = ${$hash_ref}{$column_to_be_replaced};
         my $select     = join( ',', @{$array_ref_to_readable_columns} );
-	my $handle     = send_sql(
+        my $handle     = send_sql(
 "select $select from $readable_table_name where $readable_identifying_column='$replace_me'"
         );
         my (@values) = $handle->fetchrow_array();
         ${$hash_ref}{$column_to_be_replaced} = "@values";
     }
 }
-
-
 
 #print Dumper(@test_hash);
 
@@ -661,28 +753,32 @@ print "At $races, on $date, $runner does not have their time entered<br>";
 }
 }
 =cut
+
 sub print_table2 {
     my ($db_table) = shift;
 
+    my @db_table = hashify_database_table($db_table);
+    my $handle   = send_sql("select * from $db_table");
 
-	my @db_table = hashify_database_table($db_table);
-    my $handle = send_sql("select * from $db_table");
+    our @fields = @{ $handle->{NAME} };
 
-    our @fields                = @{ $handle->{NAME} };
+    foreach $column_name (@fields) {
+        if ( $forms{$column_name}{table} ) {
 
-foreach $column_name (@fields){
-if ($forms{$column_name}{table}){
-#print "<br> '$column_name' <br>";
-my $readable_table = $forms{$column_name}{table};
-my $row_identifier = $forms{$column_name}{row_identifier};
-my @readable_columns = split (',',$forms{$column_name}{references_columns});
-replace_with2(\@db_table,$column_name,$readable_table,$row_identifier,\@readable_columns);
+            #print "<br> '$column_name' <br>";
+            my $readable_table = $forms{$column_name}{table};
+            my $row_identifier = $forms{$column_name}{row_identifier};
+            my @readable_columns =
+              split( ',', $forms{$column_name}{references_columns} );
+            replace_with2(
+                \@db_table,      $column_name, $readable_table,
+                $row_identifier, \@readable_columns
+            );
 
+        }
+    }
 
-}
-}
-    
-our @human_readable_fields = human_readable_label(@fields);
+    our @human_readable_fields = human_readable_label(@fields);
     my $table = HTML::Make->new('table');
     my $tr    = $table->push('tr');
     $tr->multiply( 'th', \@human_readable_fields );
@@ -704,18 +800,32 @@ our @human_readable_fields = human_readable_label(@fields);
 
 select_runners();
 
-print_table2( 'results' );
-print_table2( 'runners');
-print_table2( 'races' );
+print_table2('runners');
+print_table2('races');
+print_table2('results');
 
+my @results = hashify_database_table('results');
+my @readable_columns = ( 'first_name', 'last_name' );
+replace_with2( \@results, 'runner', 'runners', 'pk_id', \@readable_columns );
+my @readable_columns = ('alias');
+replace_with2( \@results, 'races', 'races', 'races_pk_id', \@readable_columns );
 
-#loop through results array
-
-$enter_data = send_sql("select * from results where minutes IS NULL");
-our $rows = $enter_data->fetchall_hashref('pk_id');
+print "<form class='full_container'>";
+foreach $hash_ref (@results) {
+    unless ( ${$hash_ref}{seconds} ) {
+        print
+"<div class='entry'>${$hash_ref}{runner} ran ";
+print "<input type='text' name='minutes.${$hash_ref}{pk_id}' placeholder='Minutes'>";
+print " and ";
+print "<input type='text' name='seconds.${$hash_ref}{pk_id}' placeholder='Seconds'>";
+print " at ${$hash_ref}{races}. </div><br>";
+    }
+}
+print "<input type='submit' value='Submit'>";
+print "</form>";
 
 #print Dumper($rows);
 
 print $cgi->end_html;
 
-#todo: At the top of the file, hashify all the databases then make unique human readable forms
+#todo: make a method to save values from the form the updates minutes and second 
