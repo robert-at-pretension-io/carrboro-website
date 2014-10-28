@@ -48,16 +48,15 @@ sub date_check {
 
     if ( $today eq $date ) { return 2; }
 
-    if ( $oy <= $ty ) {
+    if ( $oy < $ty ) {
         return 1;
-        if ( $om <= $tm ) {
-            return 1;
-            if ( $od <= $td ) {
-                return 1;
-            }
-        }
     }
-
+    elsif ( ( $oy == $ty ) and ( $om < $tm ) ) {
+        return 1;
+    }
+    elsif ( ( $oy == $ty ) and ( $om == $tm ) and ( $od < $td ) ) {
+        return 1;
+    }
     else { return 0; }
 }
 
@@ -204,10 +203,10 @@ our %forms = (
     seconds => {
         regex          => '\d{0,2}',
         fix_data       => 'Please enter 0-60.',
-        function => 'range(0,60)',
-	human_readable => "Seconds",
-    	
-	},
+        function       => 'range(0,60)',
+        human_readable => "Seconds",
+
+    },
 
 );
 
@@ -268,9 +267,6 @@ our $multivalue;
 our %valid;
 our $complete = 1;
 
-
-
-
 my @keys = keys(%hash);
 foreach my $key (@keys) {
     my ( $column, $id ) = split( /\./, $key );
@@ -280,41 +276,40 @@ my @tables = determine_table(@columns);
 
 if ( @tables == 1 ) {
     our $selected_table = join( '', @tables );
+
     #print "@columns are in @tables<br>";
 }
-elsif(!%hash){}
+elsif ( !%hash ) { }
 else { print "The columns:'@columns' exist in multiple tables:'@tables'"; }
 
 if ($selected_table) {
     foreach my $key ( keys %hash ) {
         foreach my $values ( $hash{$key} ) {
             our @split_values = split( /\0/, $values );
-		$array_size = @split_values;
-		if ($array_size == 0){undef $complete;}
-		#print "\$array_size =", $array_size, "<br>";
+            $array_size = @split_values;
+            if ( $array_size == 0 ) { undef $complete; }
 
-		if ($array_size >1){ $multivalue = 1;}
+            #print "\$array_size =", $array_size, "<br>";
+
+            if ( $array_size > 1 ) { $multivalue = 1; }
             if (@split_values) {
-		
-
 
                 my ( $column, $id ) = split( /\./, $key );
-		foreach my $value (@split_values){
-		validate_form2($column,$value);
-		}
+                foreach my $value (@split_values) {
+                    validate_form2( $column, $value );
+                }
                 print
 "<b>\$selected_table</b> = $selected_table <b>\$column</b> = $column <b>\$id</b> = $id <b>value</b> = @split_values<br>";
                 my $value = join( ',', @split_values );
 
- $valid{$column} = $value; 
+                $valid{$column} = $value;
                 if ($id) {
                     $insert{$id}{$column} = $value;
-        		$edit = 1;  
-	      }
+                    $edit = 1;
+                }
                 else {
                     $insert{$column} = $value;
                 }
-
 
             }
 
@@ -322,32 +317,85 @@ if ($selected_table) {
     }
 }
 
-
-
-
-
-
-
 #print Dumper(\%valid);
-if (%insert){
-print "<br>";
-print Dumper( \%insert );
+if (%insert) {
+    print "<br>";
+    print Dumper( \%insert );
 }
+
 #if (%errors) {print Dumper(\%errors)};
 
-if (!%errors and %hash and ($complete or $edit)){ #if there are no errors and an entry was made
-undef %valid;
-print "<br>INSERT DATA INTO DATABASE HERE<br>";
+if ( !%errors and %hash and ( $complete or $edit ) )
+{    #if there are no errors and an entry was made
+    undef %valid;
+    print "<br>INSERT DATA INTO DATABASE HERE<br>";
+    print Dumper( \%insert );
 
-if ($edit){
-print "<br>time to edit the table $selected_table<br>";
-}
-if ($multivalue){
-print "<br>time to enter multiple values: '@split_values' into $selected_table<br>";
-}
+    if ($edit) {
+        print "<br>time to edit the table $selected_table<br>";
+        my @columns;
+        foreach $id ( keys %insert ) {
+            my @keys = keys( $insert{$id} );
+            my @difference;
+            @difference = array_minus( @keys, @columns );
+            push @columns, @difference;
+        }
+
+        #@columns contains which columns we'll update
+        #$selected_table is the table we'll edit
+
+        my $update = "UPDATE $selected_table";
+        my $set    = "SET";
+        my @mod_column;
+        foreach my $column (@columns) {
+            $column = "$column=?";
+            push @mod_column, $column;
+        }
+        $mod_columns = join( ',', @mod_column );
+        my $where = "WHERE pk_id=?";
+
+        my $sql = join " ", $update, $set, $mod_columns, $where;
+        print "$sql<br>";
+        my $sth = $dbh->prepare($sql);
+        my @insert_array;
+        foreach my $id ( keys %insert ) {
+            my @values;
+            foreach my $column ( keys $insert{$id} ) {
+                my $value = $insert{$id}{$column};
+                push @values, $value;
+            }
+            push @values,       $id;
+            push @insert_array, \@values;
+        }
+        print Dumper( \@insert_array );
+        for my $insert (@insert_array) {
+            $sth->execute(@$insert);
+        }
+
+    }
+    elsif ($multivalue) {
+        print
+"<br>time to enter multiple values: '@split_values' into $selected_table<br>";
+
+    }
+    else {
+
+        my @columns, @values;
+        foreach my $key ( keys %insert ) {
+            my $value = $insert{$key};
+
+            if ( $value =~ m/(\D)/ ) { $value = "\"$value\""; }
+            push @columns, $key;
+            push @values,  $value;
+        }
+        my $columns = join( ',', @columns );
+        my $values  = join( ',', @values );
+
+        my $sql = "insert into $selected_table ($columns) values ($values)";
+        send_sql($sql);
+    }
 
 }
-
 
 =blah
         if ( !$error{$key} ) { $valid{$key} = $value; }
@@ -597,9 +645,11 @@ sub create_form {
     my $form_title             = shift;
     my $insert_into_this_table = shift;
     my (@form_fields)          = @_;
+
     #my ($current_file) = $0 =~ m'[^/]+(?=/$|$)';
     print "<div class='half_container'>";
     print "<form method='post' action='test.pl' ><h1>$form_title</h1>";
+
     #unless (%errors) { undef %valid; }
 
     foreach my $field (@form_fields) {
@@ -810,15 +860,16 @@ replace_with2( \@results, 'runner', 'runners', 'pk_id', \@readable_columns );
 my @readable_columns = ('alias');
 replace_with2( \@results, 'races', 'races', 'races_pk_id', \@readable_columns );
 
-print "<form class='full_container'>";
+print "<form method='post', class='full_container'>";
 foreach $hash_ref (@results) {
     unless ( ${$hash_ref}{seconds} ) {
+        print "<div class='entry'>${$hash_ref}{runner} ran ";
         print
-"<div class='entry'>${$hash_ref}{runner} ran ";
-print "<input type='text' name='minutes.${$hash_ref}{pk_id}' placeholder='Minutes'>";
-print " and ";
-print "<input type='text' name='seconds.${$hash_ref}{pk_id}' placeholder='Seconds'>";
-print " at ${$hash_ref}{races}. </div><br>";
+"<input type='text' name='minutes.${$hash_ref}{pk_id}' placeholder='Minutes'>";
+        print " and ";
+        print
+"<input type='text' name='seconds.${$hash_ref}{pk_id}' placeholder='Seconds'>";
+        print " at ${$hash_ref}{races}. </div><br>";
     }
 }
 print "<input type='submit' value='Submit'>";
@@ -828,4 +879,4 @@ print "</form>";
 
 print $cgi->end_html;
 
-#todo: make a method to save values from the form the updates minutes and second 
+#todo: make a method to save values from the form the updates minutes and second
