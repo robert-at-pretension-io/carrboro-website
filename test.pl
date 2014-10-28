@@ -280,7 +280,7 @@ if ( @tables == 1 ) {
     #print "@columns are in @tables<br>";
 }
 elsif ( !%hash ) { }
-else { print "The columns:'@columns' exist in multiple tables:'@tables'"; }
+else { print "The columns:'@columns' exist in multiple tables:'@tables' contact elliot about this error"; }
 
 if ($selected_table) {
     foreach my $key ( keys %hash ) {
@@ -298,8 +298,7 @@ if ($selected_table) {
                 foreach my $value (@split_values) {
                     validate_form2( $column, $value );
                 }
-                print
-"<b>\$selected_table</b> = $selected_table <b>\$column</b> = $column <b>\$id</b> = $id <b>value</b> = @split_values<br>";
+     #           print "<b>\$selected_table</b> = $selected_table <b>\$column</b> = $column <b>\$id</b> = $id <b>value</b> = @split_values<br>";
                 my $value = join( ',', @split_values );
 
                 $valid{$column} = $value;
@@ -319,8 +318,8 @@ if ($selected_table) {
 
 #print Dumper(\%valid);
 if (%insert) {
-    print "<br>";
-    print Dumper( \%insert );
+    #print "<br>";
+    #print Dumper( \%insert );
 }
 
 #if (%errors) {print Dumper(\%errors)};
@@ -328,11 +327,11 @@ if (%insert) {
 if ( !%errors and %hash and ( $complete or $edit ) )
 {    #if there are no errors and an entry was made
     undef %valid;
-    print "<br>INSERT DATA INTO DATABASE HERE<br>";
-    print Dumper( \%insert );
+    #print "<br>INSERT DATA INTO DATABASE HERE<br>";
+    #print Dumper( \%insert );
 
     if ($edit) {
-        print "<br>time to edit the table $selected_table<br>";
+       # print "<br>time to edit the table $selected_table<br>";
         my @columns;
         foreach $id ( keys %insert ) {
             my @keys = keys( $insert{$id} );
@@ -355,7 +354,7 @@ if ( !%errors and %hash and ( $complete or $edit ) )
         my $where = "WHERE pk_id=?";
 
         my $sql = join " ", $update, $set, $mod_columns, $where;
-        print "$sql<br>";
+        #print "$sql<br>";
         my $sth = $dbh->prepare($sql);
         my @insert_array;
         foreach my $id ( keys %insert ) {
@@ -367,17 +366,58 @@ if ( !%errors and %hash and ( $complete or $edit ) )
             push @values,       $id;
             push @insert_array, \@values;
         }
-        print Dumper( \@insert_array );
+        #print Dumper( \@insert_array );
         for my $insert (@insert_array) {
             $sth->execute(@$insert);
         }
 
     }
     elsif ($multivalue) {
-        print
-"<br>time to enter multiple values: '@split_values' into $selected_table<br>";
+        #print "<br>time to enter multiple values: '@split_values' into $selected_table<br>";
+my $joined_column_names = join(',', keys(%insert));
+my @placeholder;
+my $placeholder;
+foreach (keys(%insert)){
+push @placeholder, "?"; 
+}
+$placeholder=join(',',@placeholder);
+my $sql = "INSERT INTO $selected_table ($joined_column_names) VALUES ($placeholder)";
+my $sth = $dbh->prepare($sql);
 
-    }
+my $multi_value_key;
+my @single_value_keys;
+foreach $key (keys %insert){
+my $value = $insert{$key};
+#print "<br>\$key=$key,\$value=$value.";
+if ($value =~ m/.*,.*/){
+$multi_value_key = $key;
+}
+else{push @single_value_keys, $key;}
+
+}
+#print "The multi-value key is $multi_value_key<br>";
+#print "The single value keys are @single_value_keys<br>";
+#the table to enter data into is $selected_table
+#loop through the array @split_values, for each value in that loop through the single key values, afterwards put in the multikey value..
+my @large_array;
+foreach $value (@split_values){
+my @small_array;
+foreach $key (keys %insert){
+my @array = ($key);
+unless( array_minus(@array, @single_value_keys )){
+push @small_array, $insert{$key};
+}
+else{ push @small_array, $value;}
+}
+push @large_array, \@small_array;
+}    
+#print Dumper (\@large_array);
+        for my $insert (@large_array) {
+            $sth->execute(@$insert);
+        }
+
+
+}
     else {
 
         my @columns, @values;
